@@ -1,0 +1,3505 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CRACKS GYM FINANCIAL DASHBOARD</title>
+
+<!-- ============================================================
+     LIBRERÍAS EXTERNAS (CDN)
+     Chart.js     -> gráficos (dona, barras, barras horizontales, gauge)
+     SheetJS      -> exportación a Excel (.xlsx)
+     html2pdf.js  -> exportación a PDF
+============================================================ -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" crossorigin="anonymous"></script>
+<script>
+/* ============================================================
+   RESPALDO DE CDN: si la fuente principal (cdnjs) fue bloqueada
+   por el entorno (firewall, vista previa sandboxed, etc.), se
+   intenta cargar cada librería desde una fuente alterna antes
+   de que el dashboard arranque.
+   ============================================================ */
+(function(){
+  function loadScript(src){
+    return new Promise(function(resolve, reject){
+      const s = document.createElement('script');
+      s.src = src;
+      s.crossOrigin = 'anonymous';
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+  window.__cracksgymLibsReady = Promise.all([
+    typeof Chart === 'undefined'
+      ? loadScript('https://unpkg.com/chart.js@4.4.4/dist/chart.umd.min.js').catch(function(){
+          return loadScript('https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js').catch(function(){});
+        })
+      : Promise.resolve(),
+    typeof XLSX === 'undefined'
+      ? loadScript('https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js').catch(function(){
+          return loadScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js').catch(function(){});
+        })
+      : Promise.resolve(),
+    typeof html2pdf === 'undefined'
+      ? loadScript('https://unpkg.com/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js').catch(function(){
+          return loadScript('https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js').catch(function(){});
+        })
+      : Promise.resolve()
+  ]);
+})();
+</script>
+
+<style>
+/* ====================================================================
+   1. RESET & VARIABLES GLOBALES
+   ==================================================================== */
+:root{
+  --bg-app:        #1E1E1E;
+  --bg-card:       #2A2A2A;
+  --bg-card-soft:  #242424;
+  --bg-elevated:   #323232;
+  --border-soft:   #3A3A3A;
+  --border-faint:  #333333;
+
+  --text-primary:   #F2F2F2;
+  --text-secondary: #B4B4B8;
+  --text-muted:     #82828A;
+
+  --accent-blue:    #2E9BF5;
+  --accent-blue-d:  #1E6FB0;
+  --accent-teal:    #16C2B1;
+  --accent-purple:  #9B6BF2;
+  --accent-amber:   #F2A93B;
+  --accent-pink:    #F2528C;
+  --accent-green:   #2ECC71;
+  --accent-green-d: #1C8C4E;
+  --accent-red:     #F25555;
+  --accent-gray:    #6B6B72;
+
+  --radius-lg: 16px;
+  --radius-md: 12px;
+  --radius-sm: 8px;
+
+  --shadow-card: 0 4px 16px rgba(0,0,0,0.35), 0 1px 2px rgba(0,0,0,0.4);
+  --shadow-hover: 0 10px 28px rgba(0,0,0,0.5), 0 2px 6px rgba(0,0,0,0.45);
+  --shadow-glow-blue: 0 0 0 1px rgba(46,155,245,0.25), 0 8px 24px rgba(46,155,245,0.12);
+
+  --font-ui: "Segoe UI", "Segoe UI Variable", -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: "Consolas", "Segoe UI Mono", monospace;
+}
+
+*{ box-sizing:border-box; margin:0; padding:0; }
+
+html{ scroll-behavior:smooth; }
+
+body{
+  background:
+    radial-gradient(circle at 10% -10%, rgba(46,155,245,0.06), transparent 40%),
+    radial-gradient(circle at 90% 0%, rgba(155,107,242,0.05), transparent 45%),
+    var(--bg-app);
+  color:var(--text-primary);
+  font-family:var(--font-ui);
+  min-height:100vh;
+  -webkit-font-smoothing:antialiased;
+  padding-bottom:60px;
+}
+
+/* Scroll elegante */
+::-webkit-scrollbar{ width:10px; height:10px; }
+::-webkit-scrollbar-track{ background:var(--bg-app); }
+::-webkit-scrollbar-thumb{ background:#444448; border-radius:8px; border:2px solid var(--bg-app); }
+::-webkit-scrollbar-thumb:hover{ background:#55555c; }
+
+/* ====================================================================
+   2. LAYOUT GENERAL
+   ==================================================================== */
+.app-shell{
+  max-width:1500px;
+  margin:0 auto;
+  padding:24px 28px 0;
+}
+
+.fade-in{
+  animation: fadeIn .55s ease both;
+}
+@keyframes fadeIn{
+  from{ opacity:0; transform:translateY(10px); }
+  to{ opacity:1; transform:translateY(0); }
+}
+.fade-in-d1{ animation-delay:.05s; }
+.fade-in-d2{ animation-delay:.10s; }
+.fade-in-d3{ animation-delay:.15s; }
+.fade-in-d4{ animation-delay:.20s; }
+.fade-in-d5{ animation-delay:.25s; }
+
+/* ====================================================================
+   3. HEADER
+   ==================================================================== */
+.header{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:24px;
+  padding:18px 26px;
+  background:linear-gradient(135deg, #242424 0%, #202020 60%, #1c1c1c 100%);
+  border:1px solid var(--border-faint);
+  border-radius:var(--radius-lg);
+  box-shadow:var(--shadow-card);
+  position:relative;
+  overflow:hidden;
+}
+.header::before{
+  content:"";
+  position:absolute;
+  top:-60%; left:-10%;
+  width:340px; height:340px;
+  background:radial-gradient(circle, rgba(46,155,245,0.16), transparent 70%);
+  pointer-events:none;
+}
+.header::after{
+  content:"";
+  position:absolute;
+  bottom:-70%; right:5%;
+  width:300px; height:300px;
+  background:radial-gradient(circle, rgba(155,107,242,0.14), transparent 70%);
+  pointer-events:none;
+}
+
+.header-left{ display:flex; align-items:center; gap:16px; position:relative; z-index:1; }
+
+.brand-mark{
+  width:52px; height:52px;
+  border-radius:14px;
+  background:linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 6px 18px rgba(46,155,245,0.35);
+  flex-shrink:0;
+}
+.brand-mark svg{ width:28px; height:28px; }
+
+.header-titles h1{
+  font-size:26px;
+  font-weight:700;
+  letter-spacing:0.4px;
+  background:linear-gradient(90deg, #ffffff, #cfd8e3 70%);
+  -webkit-background-clip:text;
+  background-clip:text;
+  -webkit-text-fill-color:transparent;
+}
+.header-titles p{
+  margin-top:3px;
+  font-size:13px;
+  color:var(--text-secondary);
+  font-weight:400;
+  letter-spacing:0.3px;
+}
+
+.header-right{
+  display:flex;
+  align-items:center;
+  gap:18px;
+  position:relative;
+  z-index:1;
+}
+
+.header-meta{
+  display:flex;
+  flex-direction:column;
+  align-items:flex-end;
+  gap:2px;
+}
+.header-meta .meta-date{ font-size:13px; color:var(--text-secondary); font-weight:600; }
+.header-meta .meta-time{ font-size:18px; color:var(--text-primary); font-weight:700; font-variant-numeric:tabular-nums; letter-spacing:0.5px; }
+
+.header-divider{ width:1px; height:36px; background:var(--border-soft); }
+
+.user-chip{
+  display:flex; align-items:center; gap:10px;
+  padding:6px 12px 6px 6px;
+  border-radius:999px;
+  background:var(--bg-elevated);
+  border:1px solid var(--border-soft);
+}
+.user-avatar{
+  width:30px; height:30px; border-radius:50%;
+  background:linear-gradient(135deg, var(--accent-teal), var(--accent-blue));
+  display:flex; align-items:center; justify-content:center;
+  font-size:12px; font-weight:700; color:#0c1f1c;
+}
+.user-chip .user-name{ font-size:13px; font-weight:600; color:var(--text-primary); }
+.user-chip .user-role{ font-size:11px; color:var(--text-muted); }
+
+.icon-btn{
+  width:38px; height:38px;
+  border-radius:10px;
+  background:var(--bg-elevated);
+  border:1px solid var(--border-soft);
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer;
+  transition:transform .25s ease, background .25s ease, box-shadow .25s ease;
+  color:var(--text-secondary);
+}
+.icon-btn:hover{
+  background:#3a3a3e;
+  transform:rotate(35deg);
+  color:var(--text-primary);
+  box-shadow:var(--shadow-glow-blue);
+}
+.icon-btn svg{ width:18px; height:18px; }
+
+/* ====================================================================
+   3B. NAVEGACIÓN POR PESTAÑAS (Dashboard / Egresos)
+   ==================================================================== */
+.tab-nav{
+  display:flex;
+  gap:6px;
+  margin-top:18px;
+  padding:6px;
+  background:var(--bg-card);
+  border:1px solid var(--border-faint);
+  border-radius:14px;
+  box-shadow:var(--shadow-card);
+  width:fit-content;
+}
+.tab-btn{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  font-family:var(--font-ui);
+  font-size:13.5px;
+  font-weight:700;
+  letter-spacing:0.3px;
+  color:var(--text-secondary);
+  background:transparent;
+  border:none;
+  padding:11px 22px;
+  border-radius:10px;
+  cursor:pointer;
+  transition:background .22s ease, color .22s ease, box-shadow .22s ease;
+}
+.tab-btn svg{ width:17px; height:17px; flex-shrink:0; }
+.tab-emoji{ font-size:15px; line-height:1; }
+.tab-btn:hover{ color:var(--text-primary); background:var(--bg-elevated); }
+.tab-btn.active{
+  color:#fff;
+  background:linear-gradient(135deg, var(--accent-blue), var(--accent-blue-d));
+  box-shadow:0 6px 16px rgba(46,155,245,0.3);
+}
+.tab-btn:focus-visible{ outline:2px solid var(--accent-blue); outline-offset:2px; }
+
+.tab-panel{ display:none; }
+.tab-panel.active{ display:block; }
+
+/* ====================================================================
+   4. SECCIÓN TÍTULOS / EYEBROWS
+   ==================================================================== */
+.section{ margin-top:30px; }
+
+/* Divisor entre módulo de Ingresos y módulo de Gastos */
+.section-divider{
+  display:flex;
+  align-items:center;
+  gap:18px;
+  margin-top:12px;
+}
+.section-divider-line{
+  flex:1;
+  height:1px;
+  background:linear-gradient(90deg, transparent, var(--border-soft) 15%, var(--border-soft) 85%, transparent);
+}
+.section-divider-label{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  font-size:12.5px;
+  font-weight:800;
+  letter-spacing:1.2px;
+  text-transform:uppercase;
+  color:var(--accent-pink);
+  background:rgba(242,82,140,0.08);
+  border:1px solid rgba(242,82,140,0.3);
+  padding:8px 18px;
+  border-radius:999px;
+  white-space:nowrap;
+}
+.section-divider-label svg{ width:15px; height:15px; }
+
+.section-head{
+  display:flex; align-items:center; justify-content:space-between;
+  margin-bottom:14px;
+}
+.section-eyebrow{
+  font-size:11px;
+  letter-spacing:1.6px;
+  text-transform:uppercase;
+  color:var(--text-muted);
+  font-weight:700;
+  display:flex; align-items:center; gap:8px;
+}
+.section-eyebrow::before{
+  content:"";
+  width:8px; height:8px;
+  border-radius:2px;
+  background:linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+  display:inline-block;
+}
+.section-title{
+  font-size:17px;
+  font-weight:600;
+  color:var(--text-primary);
+  margin-top:2px;
+}
+
+/* ====================================================================
+   5. PANEL DE CAPTURA
+   ==================================================================== */
+.capture-panel{
+  background:var(--bg-card);
+  border:1px solid var(--border-faint);
+  border-radius:var(--radius-lg);
+  padding:22px 24px 24px;
+  box-shadow:var(--shadow-card);
+}
+
+.capture-grid{
+  display:grid;
+  grid-template-columns:repeat(6, 1fr);
+  gap:16px;
+}
+
+.field-group{ display:flex; flex-direction:column; gap:7px; }
+.field-group label{
+  font-size:11.5px;
+  font-weight:700;
+  letter-spacing:0.6px;
+  text-transform:uppercase;
+  color:var(--text-muted);
+  display:flex; align-items:center; gap:6px;
+}
+.field-group label .req-dot{ width:5px;height:5px;border-radius:50%; background:var(--accent-blue); }
+
+.field-input, .field-select{
+  background:#202020;
+  border:1px solid var(--border-soft);
+  color:var(--text-primary);
+  font-family:var(--font-ui);
+  font-size:14.5px;
+  font-weight:600;
+  padding:11px 12px;
+  border-radius:var(--radius-sm);
+  outline:none;
+  transition:border-color .2s ease, box-shadow .2s ease, background .2s ease;
+  width:100%;
+}
+.field-input::placeholder{ color:#5b5b62; font-weight:400; }
+.field-input:hover, .field-select:hover{ border-color:#4a4a52; }
+.field-input:focus, .field-select:focus{
+  border-color:var(--accent-blue);
+  box-shadow:0 0 0 3px rgba(46,155,245,0.18);
+  background:#1c1c1c;
+}
+.field-input[readonly]{
+  color:var(--text-secondary);
+  background:#1a1a1a;
+  cursor:not-allowed;
+  border-style:dashed;
+}
+.field-input[readonly]:focus{ box-shadow:none; border-color:var(--border-soft); }
+.field-select{ cursor:pointer; appearance:none;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23B4B4B8' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>");
+  background-repeat:no-repeat;
+  background-position:right 12px center;
+  padding-right:34px;
+}
+.field-select option{ background:#202020; color:var(--text-primary); }
+
+.field-hint{ font-size:11px; color:var(--text-muted); margin-top:1px; }
+
+/* Botonera */
+.action-row{
+  display:flex;
+  flex-wrap:wrap;
+  gap:12px;
+  margin-top:22px;
+  padding-top:20px;
+  border-top:1px solid var(--border-faint);
+}
+.btn{
+  display:inline-flex;
+  align-items:center;
+  gap:9px;
+  font-family:var(--font-ui);
+  font-size:13.5px;
+  font-weight:700;
+  letter-spacing:0.3px;
+  padding:12px 20px;
+  border-radius:10px;
+  border:none;
+  cursor:pointer;
+  transition:transform .18s ease, box-shadow .25s ease, filter .2s ease;
+  color:#fff;
+}
+.btn svg{ width:16px; height:16px; }
+.btn:active{ transform:translateY(1px) scale(.99); }
+.btn:hover{ filter:brightness(1.08); box-shadow:0 8px 22px rgba(0,0,0,0.35); transform:translateY(-1px); }
+
+.btn-calc{ background:linear-gradient(135deg, #2ECC71, #25a85d); box-shadow:0 6px 18px rgba(46,204,113,0.25); }
+.btn-reset{ background:linear-gradient(135deg, #6B6B72, #565660); box-shadow:0 6px 18px rgba(0,0,0,0.25); }
+.btn-pdf{ background:linear-gradient(135deg, #2E9BF5, #1E6FB0); box-shadow:0 6px 18px rgba(46,155,245,0.25); }
+.btn-excel{ background:linear-gradient(135deg, #1C8C4E, #115c33); box-shadow:0 6px 18px rgba(28,140,78,0.25); }
+
+.btn[disabled]{
+  opacity:0.45;
+  cursor:not-allowed;
+  filter:grayscale(0.3);
+  box-shadow:none;
+  transform:none;
+}
+
+/* Tarjeta de validación */
+.validation-alert{
+  display:none;
+  align-items:flex-start;
+  gap:12px;
+  margin-top:18px;
+  padding:14px 16px;
+  border-radius:var(--radius-md);
+  background:rgba(242,85,85,0.08);
+  border:1px solid rgba(242,85,85,0.45);
+  animation: shakeIn .4s ease;
+}
+.validation-alert.show{ display:flex; }
+@keyframes shakeIn{
+  0%{ transform:translateX(0); opacity:0; }
+  25%{ transform:translateX(-6px); }
+  50%{ transform:translateX(6px); }
+  75%{ transform:translateX(-3px); }
+  100%{ transform:translateX(0); opacity:1; }
+}
+.validation-alert svg{ width:20px; height:20px; flex-shrink:0; color:var(--accent-red); margin-top:1px; }
+.validation-alert .val-title{ font-size:13.5px; font-weight:700; color:#ff8989; }
+.validation-alert .val-desc{ font-size:12.5px; color:#e0a9a9; margin-top:2px; }
+
+/* ====================================================================
+   6. KPI CARDS - FILA 1
+   ==================================================================== */
+.kpi-grid{
+  display:grid;
+  grid-template-columns:repeat(4, 1fr);
+  gap:16px;
+}
+.kpi-card{
+  position:relative;
+  background:var(--bg-card);
+  border:1px solid var(--border-faint);
+  border-radius:var(--radius-lg);
+  padding:18px 18px 16px;
+  overflow:hidden;
+  box-shadow:var(--shadow-card);
+  transition:transform .28s ease, box-shadow .28s ease, border-color .28s ease;
+  cursor:default;
+}
+.kpi-card:hover{
+  transform:translateY(-4px);
+  box-shadow:var(--shadow-hover);
+  border-color:var(--kpi-accent, var(--accent-blue));
+}
+.kpi-card::before{
+  content:"";
+  position:absolute;
+  top:0; left:0; right:0; height:3px;
+  background:var(--kpi-accent, var(--accent-blue));
+  opacity:.9;
+}
+.kpi-card::after{
+  content:"";
+  position:absolute;
+  right:-30px; top:-30px;
+  width:110px; height:110px;
+  border-radius:50%;
+  background:var(--kpi-accent, var(--accent-blue));
+  opacity:0.07;
+  transition:opacity .3s ease, transform .3s ease;
+}
+.kpi-card:hover::after{ opacity:0.13; transform:scale(1.1); }
+
+.kpi-top{ display:flex; align-items:center; justify-content:space-between; }
+.kpi-icon{
+  width:36px; height:36px;
+  border-radius:10px;
+  display:flex; align-items:center; justify-content:center;
+  background:color-mix(in srgb, var(--kpi-accent, var(--accent-blue)) 18%, transparent);
+  color:var(--kpi-accent, var(--accent-blue));
+}
+.kpi-icon svg{ width:18px; height:18px; }
+
+.kpi-trend{
+  display:flex; align-items:center; gap:4px;
+  font-size:11.5px; font-weight:700;
+  padding:4px 8px;
+  border-radius:999px;
+}
+.kpi-trend.up{ color:#7ee2a8; background:rgba(46,204,113,0.12); }
+.kpi-trend.down{ color:#f29a9a; background:rgba(242,85,85,0.12); }
+.kpi-trend.flat{ color:var(--text-muted); background:rgba(255,255,255,0.04); }
+.kpi-trend svg{ width:11px; height:11px; }
+
+.kpi-label{
+  font-size:11.5px;
+  font-weight:700;
+  letter-spacing:0.6px;
+  text-transform:uppercase;
+  color:var(--text-muted);
+  margin-top:14px;
+}
+.kpi-value{
+  font-size:26px;
+  font-weight:800;
+  color:var(--text-primary);
+  margin-top:4px;
+  letter-spacing:0.2px;
+  font-variant-numeric:tabular-nums;
+}
+.kpi-sub{ font-size:11.5px; color:var(--text-muted); margin-top:3px; }
+
+/* ====================================================================
+   7. CHART CARDS GENÉRICOS
+   ==================================================================== */
+.row-2col{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.row-3col{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; }
+
+.chart-card{
+  background:var(--bg-card);
+  border:1px solid var(--border-faint);
+  border-radius:var(--radius-lg);
+  padding:20px;
+  box-shadow:var(--shadow-card);
+  transition:box-shadow .3s ease, border-color .3s ease;
+}
+.chart-card:hover{ box-shadow:var(--shadow-hover); border-color:#404048; }
+
+.chart-card-head{
+  display:flex; align-items:center; justify-content:space-between;
+  margin-bottom:14px;
+}
+.chart-card-head h3{
+  font-size:14.5px;
+  font-weight:700;
+  color:var(--text-primary);
+  display:flex; align-items:center; gap:8px;
+}
+.chart-card-head h3 .dot{ width:7px;height:7px;border-radius:50%; }
+.chart-card-head .chart-badge{
+  font-size:10.5px;
+  font-weight:700;
+  letter-spacing:0.4px;
+  color:var(--text-muted);
+  background:var(--bg-elevated);
+  border:1px solid var(--border-soft);
+  padding:3px 9px;
+  border-radius:999px;
+}
+
+.chart-canvas-wrap{ position:relative; height:260px; }
+.chart-canvas-wrap.tall{ height:300px; }
+.chart-canvas-wrap.short{ height:200px; }
+
+.legend-row{
+  display:flex; gap:18px; margin-top:14px; flex-wrap:wrap;
+  padding-top:14px; border-top:1px solid var(--border-faint);
+}
+.legend-item{ display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text-secondary); }
+.legend-swatch{ width:10px; height:10px; border-radius:3px; }
+.legend-item b{ color:var(--text-primary); font-variant-numeric:tabular-nums; }
+
+/* Gauge */
+.gauge-wrap{ display:flex; flex-direction:column; align-items:center; justify-content:center; height:240px; position:relative; }
+.gauge-value{
+  position:absolute;
+  top:54%; left:50%; transform:translate(-50%,-50%);
+  text-align:center;
+}
+.gauge-value .gv-num{ font-size:34px; font-weight:800; color:var(--text-primary); font-variant-numeric:tabular-nums; }
+.gauge-value .gv-label{ font-size:11px; color:var(--text-muted); font-weight:700; letter-spacing:0.5px; text-transform:uppercase; margin-top:2px; }
+
+.mini-stat-card{
+  background:var(--bg-card);
+  border:1px solid var(--border-faint);
+  border-radius:var(--radius-lg);
+  padding:20px;
+  box-shadow:var(--shadow-card);
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  transition:box-shadow .3s ease, transform .3s ease, border-color .3s ease;
+}
+.mini-stat-card:hover{ box-shadow:var(--shadow-hover); transform:translateY(-3px); }
+.mini-stat-head{ display:flex; align-items:center; justify-content:space-between; }
+.mini-stat-head h3{ font-size:13px; font-weight:700; color:var(--text-secondary); letter-spacing:0.3px; }
+.mini-ring-icon{ width:34px; height:34px; border-radius:9px; display:flex; align-items:center; justify-content:center; }
+.mini-ring-icon svg{ width:17px; height:17px; }
+
+.progress-track{
+  width:100%; height:10px; border-radius:999px;
+  background:#1c1c1c;
+  border:1px solid var(--border-soft);
+  overflow:hidden;
+  margin-top:16px;
+}
+.progress-fill{
+  height:100%;
+  border-radius:999px;
+  width:0%;
+  transition:width 1s cubic-bezier(.4,0,.2,1);
+  position:relative;
+}
+.progress-fill::after{
+  content:"";
+  position:absolute; inset:0;
+  background:linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent);
+  animation:shimmer 2.2s linear infinite;
+}
+@keyframes shimmer{
+  0%{ transform:translateX(-100%); }
+  100%{ transform:translateX(100%); }
+}
+.mini-stat-value{ font-size:28px; font-weight:800; margin-top:14px; font-variant-numeric:tabular-nums; }
+.mini-stat-foot{ font-size:11.5px; color:var(--text-muted); margin-top:6px; }
+
+/* ====================================================================
+   8. TABLA HISTÓRICA
+   ==================================================================== */
+.table-card{
+  background:var(--bg-card);
+  border:1px solid var(--border-faint);
+  border-radius:var(--radius-lg);
+  padding:20px;
+  box-shadow:var(--shadow-card);
+}
+.table-toolbar{
+  display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:10px;
+}
+.table-toolbar h3{ font-size:14.5px; font-weight:700; }
+.table-toolbar .table-count{
+  font-size:11.5px; color:var(--text-muted); background:var(--bg-elevated);
+  border:1px solid var(--border-soft); padding:4px 10px; border-radius:999px; font-weight:700;
+}
+
+.table-scroll{ overflow-x:auto; border-radius:var(--radius-md); border:1px solid var(--border-faint); }
+table.history-table{
+  width:100%;
+  border-collapse:collapse;
+  font-size:13px;
+  min-width:920px;
+}
+.history-table thead th{
+  background:#232325;
+  color:var(--text-muted);
+  font-size:11px;
+  letter-spacing:0.5px;
+  text-transform:uppercase;
+  font-weight:700;
+  text-align:left;
+  padding:12px 14px;
+  position:sticky; top:0;
+  border-bottom:1px solid var(--border-soft);
+  white-space:nowrap;
+}
+.history-table tbody td{
+  padding:12px 14px;
+  border-bottom:1px solid var(--border-faint);
+  color:var(--text-secondary);
+  font-variant-numeric:tabular-nums;
+  white-space:nowrap;
+}
+.history-table tbody tr{ transition:background .2s ease; }
+.history-table tbody tr:hover{ background:rgba(46,155,245,0.05); }
+.history-table tbody tr:last-child td{ border-bottom:none; }
+.history-table td.col-strong{ color:var(--text-primary); font-weight:700; }
+.history-table td.col-pos{ color:#7ee2a8; font-weight:700; }
+.history-table td.col-neg{ color:#f29a9a; font-weight:700; }
+
+.empty-state{
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  padding:46px 20px; text-align:center; color:var(--text-muted);
+}
+.empty-state svg{ width:42px; height:42px; margin-bottom:12px; opacity:.5; }
+.empty-state .es-title{ font-size:14px; font-weight:700; color:var(--text-secondary); }
+.empty-state .es-sub{ font-size:12.5px; margin-top:4px; max-width:320px; }
+
+/* ====================================================================
+   9. FOOTER
+   ==================================================================== */
+.dash-footer{
+  margin-top:34px;
+  padding:18px 4px 4px;
+  display:flex; align-items:center; justify-content:space-between;
+  border-top:1px solid var(--border-faint);
+  color:var(--text-muted);
+  font-size:11.5px;
+  flex-wrap:wrap; gap:10px;
+}
+.dash-footer .footer-tags{ display:flex; gap:8px; flex-wrap:wrap; }
+.footer-tag{
+  background:var(--bg-elevated); border:1px solid var(--border-soft);
+  padding:3px 10px; border-radius:999px; font-weight:600;
+}
+
+/* ====================================================================
+   10. TOOLTIP custom (data-tip)
+   ==================================================================== */
+[data-tip]{ position:relative; }
+[data-tip]:hover::after{
+  content:attr(data-tip);
+  position:absolute;
+  bottom:calc(100% + 8px);
+  left:50%; transform:translateX(-50%);
+  background:#101012;
+  color:#f1f1f1;
+  font-size:11px;
+  font-weight:600;
+  padding:6px 10px;
+  border-radius:7px;
+  white-space:nowrap;
+  border:1px solid #3a3a40;
+  box-shadow:0 6px 16px rgba(0,0,0,0.45);
+  z-index:50;
+  animation:fadeIn .15s ease both;
+}
+[data-tip]:hover::before{
+  content:"";
+  position:absolute;
+  bottom:calc(100% + 3px);
+  left:50%; transform:translateX(-50%);
+  border:5px solid transparent;
+  border-top-color:#101012;
+  z-index:50;
+}
+
+/* Toast de confirmación */
+.toast{
+  position:fixed;
+  bottom:26px; left:50%;
+  transform:translateX(-50%) translateY(20px);
+  background:#202022;
+  border:1px solid var(--border-soft);
+  color:var(--text-primary);
+  padding:13px 20px;
+  border-radius:12px;
+  font-size:13px;
+  font-weight:600;
+  display:flex; align-items:center; gap:10px;
+  box-shadow:0 14px 36px rgba(0,0,0,0.5);
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .3s ease, transform .3s ease;
+  z-index:999;
+}
+.toast.show{ opacity:1; transform:translateX(-50%) translateY(0); pointer-events:auto; }
+.toast svg{ width:18px; height:18px; flex-shrink:0; }
+.toast.success svg{ color:var(--accent-green); }
+.toast.error svg{ color:var(--accent-red); }
+.toast.info svg{ color:var(--accent-blue); }
+
+/* ====================================================================
+   12. SIMULADOR DE EGRESOS — COMPONENTES NUEVOS
+   ==================================================================== */
+
+/* Badge "cálculo en vivo" */
+.sim-live-badge{
+  display:flex; align-items:center; gap:8px;
+  font-size:11.5px; font-weight:700; letter-spacing:0.4px;
+  color:#7ee2a8;
+  background:rgba(46,204,113,0.1);
+  border:1px solid rgba(46,204,113,0.35);
+  padding:7px 14px;
+  border-radius:999px;
+}
+.sim-live-dot{
+  width:7px; height:7px; border-radius:50%;
+  background:var(--accent-green);
+  box-shadow:0 0 0 0 rgba(46,204,113,0.6);
+  animation:livePulse 1.8s ease-in-out infinite;
+}
+@keyframes livePulse{
+  0%{ box-shadow:0 0 0 0 rgba(46,204,113,0.55); }
+  70%{ box-shadow:0 0 0 7px rgba(46,204,113,0); }
+  100%{ box-shadow:0 0 0 0 rgba(46,204,113,0); }
+}
+
+/* Semáforo de salud financiera */
+.semaforo-card{
+  display:flex; align-items:center; gap:18px;
+  background:var(--bg-card);
+  border:1px solid var(--border-faint);
+  border-radius:var(--radius-lg);
+  padding:18px 22px;
+  box-shadow:var(--shadow-card);
+  transition:border-color .3s ease, box-shadow .3s ease;
+}
+.semaforo-light{
+  width:54px; height:54px;
+  border-radius:50%;
+  background:#1a1a1a;
+  border:1px solid var(--border-soft);
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink:0;
+}
+.semaforo-dot{
+  width:26px; height:26px;
+  border-radius:50%;
+  background:var(--accent-gray);
+  transition:background .4s ease, box-shadow .4s ease;
+}
+.semaforo-dot.red{ background:var(--accent-red); box-shadow:0 0 18px rgba(242,85,85,0.55); }
+.semaforo-dot.yellow{ background:var(--accent-amber); box-shadow:0 0 18px rgba(242,169,59,0.55); }
+.semaforo-dot.green{ background:var(--accent-green); box-shadow:0 0 18px rgba(46,204,113,0.55); }
+.semaforo-text .semaforo-title{ font-size:15px; font-weight:700; color:var(--text-primary); }
+.semaforo-text .semaforo-sub{ font-size:12.5px; color:var(--text-secondary); margin-top:3px; }
+
+/* Tarjeta grande de Egresos: dos columnas */
+.egresos-card{
+  background:var(--bg-card);
+  border:1px solid var(--border-faint);
+  border-radius:var(--radius-lg);
+  padding:22px 24px 0;
+  box-shadow:var(--shadow-card);
+  overflow:hidden;
+}
+.egresos-cols{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:28px;
+  padding-bottom:22px;
+}
+.egresos-col-head{
+  display:flex; align-items:center; gap:12px;
+  margin-bottom:16px;
+}
+.egresos-col-icon{
+  width:38px; height:38px; border-radius:10px;
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink:0;
+}
+.egresos-col-icon svg{ width:19px; height:19px; }
+.egresos-col-icon.fijo{ background:rgba(155,107,242,0.16); color:var(--accent-purple); }
+.egresos-col-icon.variable{ background:rgba(242,169,59,0.16); color:var(--accent-amber); }
+.egresos-col-head h3{ font-size:14.5px; font-weight:700; color:var(--text-primary); }
+.egresos-col-head span{ font-size:11.5px; color:var(--text-muted); }
+
+.egresos-fields{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:13px;
+}
+.egresos-field{ display:flex; flex-direction:column; gap:6px; }
+.egresos-field label{
+  font-size:11px; font-weight:700; letter-spacing:0.3px;
+  color:var(--text-muted);
+}
+.egresos-field input{
+  background:#202020;
+  border:1px solid var(--border-soft);
+  color:var(--text-primary);
+  font-family:var(--font-ui);
+  font-size:13.5px; font-weight:600;
+  padding:9px 10px;
+  border-radius:var(--radius-sm);
+  outline:none;
+  width:100%;
+  transition:border-color .2s ease, box-shadow .2s ease, background .2s ease;
+}
+.egresos-field input:focus{
+  border-color:var(--accent-blue);
+  box-shadow:0 0 0 3px rgba(46,155,245,0.18);
+  background:#1c1c1c;
+}
+
+.egresos-subtotal{
+  display:flex; align-items:center; justify-content:space-between;
+  margin-top:18px; padding-top:14px;
+  border-top:1px solid var(--border-faint);
+  font-size:13px; color:var(--text-secondary); font-weight:600;
+}
+.egresos-subtotal b{ font-size:16px; color:var(--text-primary); font-variant-numeric:tabular-nums; }
+
+.egresos-total-bar{
+  display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:18px;
+  margin:0 -24px;
+  padding:18px 24px;
+  background:linear-gradient(135deg, #232325, #1d1d1f);
+  border-top:1px solid var(--border-soft);
+}
+.egresos-total-item{ display:flex; flex-direction:column; gap:4px; }
+.egresos-total-item span{ font-size:11px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; color:var(--text-muted); }
+.egresos-total-item b{ font-size:24px; font-weight:800; color:var(--accent-red); font-variant-numeric:tabular-nums; }
+.egresos-total-item.isr-field label{ font-size:11px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; color:var(--text-muted); display:block; margin-bottom:7px; }
+.isr-input-wrap{ position:relative; width:120px; }
+.isr-input-wrap input{
+  background:#202020; border:1px solid var(--border-soft); color:var(--text-primary);
+  font-family:var(--font-ui); font-size:15px; font-weight:700;
+  padding:9px 30px 9px 12px; border-radius:var(--radius-sm); outline:none; width:100%;
+  transition:border-color .2s ease, box-shadow .2s ease;
+}
+.isr-input-wrap input:focus{ border-color:var(--accent-amber); box-shadow:0 0 0 3px rgba(242,169,59,0.18); }
+.isr-pct-sign{ position:absolute; right:11px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-weight:700; font-size:13px; pointer-events:none; }
+
+/* Tabla de escenarios: fila resaltada del precio activo */
+.history-table tbody tr.scenario-active{
+  background:rgba(46,155,245,0.1);
+  box-shadow:inset 3px 0 0 var(--accent-blue);
+}
+.history-table tbody tr.scenario-active td{ color:var(--text-primary); font-weight:700; }
+.scenario-tag{
+  display:inline-block; margin-left:8px;
+  font-size:9.5px; font-weight:800; letter-spacing:0.4px;
+  color:#fff; background:var(--accent-blue);
+  padding:2px 7px; border-radius:999px; vertical-align:middle;
+}
+
+/* ====================================================================
+   11. RESPONSIVE
+   ==================================================================== */
+@media (max-width:1180px){
+  .capture-grid{ grid-template-columns:repeat(3, 1fr); }
+  .kpi-grid{ grid-template-columns:repeat(2, 1fr); }
+  .row-3col{ grid-template-columns:1fr 1fr; }
+}
+@media (max-width:860px){
+  .row-2col{ grid-template-columns:1fr; }
+  .row-3col{ grid-template-columns:1fr; }
+  .header{ flex-direction:column; gap:16px; }
+  .header-right{ width:100%; justify-content:space-between; }
+  .egresos-cols{ grid-template-columns:1fr; gap:22px; }
+  .egresos-total-bar{ flex-direction:column; align-items:flex-start; }
+}
+@media (max-width:640px){
+  .app-shell{ padding:16px 14px 0; }
+  .capture-grid{ grid-template-columns:repeat(2, 1fr); }
+  .kpi-grid{ grid-template-columns:1fr 1fr; }
+  .action-row{ flex-direction:column; }
+  .btn{ width:100%; justify-content:center; }
+  .egresos-fields{ grid-template-columns:1fr; }
+  .tab-btn{ padding:10px 14px; font-size:12.5px; }
+}
+
+/* Estado de impresión / exportación PDF */
+.exporting .icon-btn, .exporting .table-toolbar .btn-mini{ display:none !important; }
+</style>
+</head>
+<body>
+
+<div class="app-shell" id="dashboardRoot">
+
+  <!-- ================= HEADER ================= -->
+  <header class="header fade-in">
+    <div class="header-left">
+      <div class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 17l5-5 4 4 9-9"></path>
+          <path d="M21 7V3h-4"></path>
+        </svg>
+      </div>
+      <div class="header-titles">
+        <h1>CRACKS GYM FINANCIAL DASHBOARD</h1>
+        <p>Simulador Financiero de Membresías</p>
+      </div>
+    </div>
+
+    <div class="header-right">
+      <div class="header-meta">
+        <span class="meta-date" id="headerDate">—</span>
+        <span class="meta-time" id="headerTime">--:--:--</span>
+      </div>
+      <div class="header-divider"></div>
+      <div class="user-chip">
+        <div class="user-avatar">AP</div>
+        <div>
+          <div class="user-name">Alejandro Pérez Rubio T.</div>
+          <div class="user-role">Director General</div>
+        </div>
+      </div>
+      <div class="icon-btn" data-tip="Configuración" id="settingsBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"></path>
+        </svg>
+      </div>
+    </div>
+  </header>
+
+  <!-- ================= NAVEGACIÓN POR PESTAÑAS ================= -->
+  <nav class="tab-nav fade-in" role="tablist" aria-label="Secciones del dashboard">
+    <button class="tab-btn active" id="tabBtnDashboard" role="tab" aria-selected="true" aria-controls="tabDashboard" data-tab="tabDashboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect><rect x="3" y="16" width="7" height="5" rx="1.5"></rect></svg>
+      Dashboard
+    </button>
+    <button class="tab-btn" id="tabBtnEgresos" role="tab" aria-selected="false" aria-controls="tabEgresos" data-tab="tabEgresos">
+      <span class="tab-emoji">💰</span>
+      EGRESOS
+    </button>
+  </nav>
+
+  <!-- ================= TAB: DASHBOARD (contenido existente, sin cambios) ================= -->
+  <div class="tab-panel active" id="tabDashboard" role="tabpanel" aria-labelledby="tabBtnDashboard">
+
+  <!-- ================= PANEL DE CAPTURA ================= -->
+  <section class="section fade-in fade-in-d1">
+    <div class="section-head">
+      <div>
+        <div class="section-eyebrow">Parámetros de simulación</div>
+        <div class="section-title">Panel de Captura</div>
+      </div>
+    </div>
+
+    <div class="capture-panel">
+      <div class="capture-grid">
+
+        <div class="field-group">
+          <label for="inpInscritos"><span class="req-dot"></span>Inscritos</label>
+          <input type="number" id="inpInscritos" class="field-input" placeholder="Ej. 800" min="0" value="800">
+          <span class="field-hint">Total de socios registrados</span>
+        </div>
+
+        <div class="field-group">
+          <label for="inpPrecio"><span class="req-dot"></span>Precio mensual</label>
+          <select id="inpPrecio" class="field-select">
+            <option value="399" selected>$399 — Presale domiciliado</option>
+            <option value="449">$449 — Post-apertura domiciliado</option>
+            <option value="599">$599 — Post-apertura / mantenimiento</option>
+            <option value="750">$750 — Precio ancla</option>
+          </select>
+          <span class="field-hint">Cuota mensual por socio</span>
+        </div>
+
+        <div class="field-group">
+          <label for="inpDomiciliados"><span class="req-dot"></span>Domiciliados</label>
+          <input type="number" id="inpDomiciliados" class="field-input" placeholder="Ej. 650" min="0" value="650">
+          <span class="field-hint">Pago automático bancario</span>
+        </div>
+
+        <div class="field-group">
+          <label for="inpNoDomiciliados"><span class="req-dot"></span>No domiciliados</label>
+          <input type="number" id="inpNoDomiciliados" class="field-input" placeholder="Ej. 150" min="0" value="150">
+          <span class="field-hint">Pago manual / efectivo</span>
+        </div>
+
+        <div class="field-group">
+          <label for="inpComision"><span class="req-dot"></span>Comisión bancaria</label>
+          <select id="inpComision" class="field-select">
+            <option value="0">0%</option>
+            <option value="1">1%</option>
+            <option value="2">2%</option>
+            <option value="2.5" selected>2.5%</option>
+            <option value="3">3%</option>
+            <option value="3.5">3.5%</option>
+            <option value="4">4%</option>
+            <option value="5">5%</option>
+            <option value="6">6%</option>
+          </select>
+          <span class="field-hint">% sobre domiciliados</span>
+        </div>
+
+        <div class="field-group">
+          <label for="inpMeta"><span class="req-dot"></span>Meta de clientes</label>
+          <input type="number" id="inpMeta" class="field-input" placeholder="Ej. 800" min="0" value="800">
+          <span class="field-hint">Objetivo de socios totales</span>
+        </div>
+
+      </div>
+
+      <!-- Alerta de validación -->
+      <div class="validation-alert" id="validationAlert">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+        <div>
+          <div class="val-title">Inconsistencia en los datos capturados</div>
+          <div class="val-desc" id="validationText">La suma de domiciliados y no domiciliados debe ser igual al número de inscritos.</div>
+        </div>
+      </div>
+
+      <!-- Botonera -->
+      <div class="action-row" id="actionRow">
+        <button class="btn btn-calc" id="btnCalcular">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          CALCULAR
+        </button>
+        <button class="btn btn-reset" id="btnReiniciar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 102.13-9.36L1 10"></path></svg>
+          REINICIAR
+        </button>
+        <button class="btn btn-pdf" id="btnPdf">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+          EXPORTAR PDF
+        </button>
+        <button class="btn btn-excel" id="btnExcel">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          EXPORTAR EXCEL
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= FILA 1: KPIs ================= -->
+  <section class="section fade-in fade-in-d2">
+    <div class="section-head">
+      <div>
+        <div class="section-eyebrow">Resultados generales</div>
+        <div class="section-title">Indicadores Clave (KPI)</div>
+      </div>
+    </div>
+    <div class="kpi-grid" id="kpiGrid"><!-- generado por JS --></div>
+  </section>
+
+  <!-- ================= FILA 2: Dona + Barras ================= -->
+  <section class="section fade-in fade-in-d3">
+    <div class="row-2col">
+      <div class="chart-card">
+        <div class="chart-card-head">
+          <h3><span class="dot" style="background:var(--accent-teal)"></span>Distribución de Socios</h3>
+          <span class="chart-badge">DONA</span>
+        </div>
+        <div class="chart-canvas-wrap"><canvas id="chartDona"></canvas></div>
+        <div class="legend-row" id="legendDona"></div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-card-head">
+          <h3><span class="dot" style="background:var(--accent-blue)"></span>Composición de Ingresos</h3>
+          <span class="chart-badge">BARRAS</span>
+        </div>
+        <div class="chart-canvas-wrap"><canvas id="chartIngresos"></canvas></div>
+        <div class="legend-row" id="legendIngresos"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= FILA 3: Gauge + % Domiciliados + % No domiciliados ================= -->
+  <section class="section fade-in fade-in-d4">
+    <div class="row-3col">
+      <div class="chart-card">
+        <div class="chart-card-head">
+          <h3><span class="dot" style="background:var(--accent-amber)"></span>Cumplimiento de Meta</h3>
+          <span class="chart-badge">GAUGE</span>
+        </div>
+        <div class="gauge-wrap">
+          <canvas id="chartGauge"></canvas>
+          <div class="gauge-value">
+            <div class="gv-num" id="gaugeNum">0%</div>
+            <div class="gv-label" id="gaugeSub">0 / 0 socios</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mini-stat-card">
+        <div class="mini-stat-head">
+          <h3>% Domiciliados</h3>
+          <div class="mini-ring-icon" style="background:rgba(46,155,245,0.16); color:var(--accent-blue);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg>
+          </div>
+        </div>
+        <div class="mini-stat-value" id="pctDomiciliadosVal" style="color:var(--accent-blue);">0%</div>
+        <div class="progress-track"><div class="progress-fill" id="pctDomiciliadosBar" style="background:linear-gradient(90deg, var(--accent-blue), var(--accent-teal));"></div></div>
+        <div class="mini-stat-foot" id="pctDomiciliadosFoot">0 de 0 socios con domiciliación</div>
+      </div>
+
+      <div class="mini-stat-card">
+        <div class="mini-stat-head">
+          <h3>% No Domiciliados</h3>
+          <div class="mini-ring-icon" style="background:rgba(242,169,59,0.16); color:var(--accent-amber);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 010-4h14v4"></path><path d="M3 5v14a2 2 0 002 2h16v-5"></path><path d="M18 12a2 2 0 000 4h4v-4z"></path></svg>
+          </div>
+        </div>
+        <div class="mini-stat-value" id="pctNoDomiciliadosVal" style="color:var(--accent-amber);">0%</div>
+        <div class="progress-track"><div class="progress-fill" id="pctNoDomiciliadosBar" style="background:linear-gradient(90deg, var(--accent-amber), var(--accent-pink));"></div></div>
+        <div class="mini-stat-foot" id="pctNoDomiciliadosFoot">0 de 0 socios sin domiciliación</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= FILA 4: Barras horizontales comparativas ================= -->
+  <section class="section fade-in fade-in-d5">
+    <div class="chart-card">
+      <div class="chart-card-head">
+        <h3><span class="dot" style="background:var(--accent-purple)"></span>Comparativo: Inscritos vs. Meta vs. Domiciliación</h3>
+        <span class="chart-badge">BARRAS HORIZONTALES</span>
+      </div>
+      <div class="chart-canvas-wrap tall"><canvas id="chartComparativo"></canvas></div>
+    </div>
+  </section>
+
+  <!-- ================= FILA 5: Tabla histórica ================= -->
+  <section class="section fade-in fade-in-d5">
+    <div class="table-card">
+      <div class="table-toolbar">
+        <div>
+          <h3>Historial de Simulaciones</h3>
+        </div>
+        <span class="table-count" id="historyCount">0 registros</span>
+      </div>
+
+      <div class="table-scroll">
+        <table class="history-table" id="historyTable">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Fecha de simulación</th>
+              <th>Inscritos</th>
+              <th>Precio</th>
+              <th>Domiciliados</th>
+              <th>No domiciliados</th>
+              <th>Ingreso bruto</th>
+              <th>Comisión</th>
+              <th>Ingreso neto</th>
+            </tr>
+          </thead>
+          <tbody id="historyBody">
+            <!-- filas generadas por JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <div class="empty-state" id="historyEmpty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
+        <div class="es-title">Aún no hay simulaciones registradas</div>
+        <div class="es-sub">Presiona CALCULAR para generar tu primer escenario y comenzar a construir el historial.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= DIVISOR DE SECCIÓN: GASTOS ================= -->
+  <section class="section fade-in">
+    <div class="section-divider">
+      <span class="section-divider-line"></span>
+      <span class="section-divider-label">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 010-4h14v4"></path><path d="M3 5v14a2 2 0 002 2h16v-5"></path><path d="M18 12a2 2 0 000 4h4v-4z"></path></svg>
+        Módulo de Egresos
+      </span>
+      <span class="section-divider-line"></span>
+    </div>
+  </section>
+
+  <!-- ================= PANEL DE CAPTURA DE GASTOS ================= -->
+  <section class="section fade-in">
+    <div class="section-head">
+      <div>
+        <div class="section-eyebrow">Parámetros de egresos</div>
+        <div class="section-title">Panel de Captura de Gastos</div>
+      </div>
+    </div>
+
+    <div class="capture-panel">
+      <div class="capture-grid">
+
+        <div class="field-group">
+          <label for="gInpCategoria"><span class="req-dot" style="background:var(--accent-red);"></span>Categoría</label>
+          <select id="gInpCategoria" class="field-select">
+            <option value="Renta">Renta del local</option>
+            <option value="Nomina">Nómina y prestaciones</option>
+            <option value="Equipo">Mantenimiento de equipo</option>
+            <option value="Marketing">Marketing y publicidad</option>
+            <option value="Servicios">Servicios (luz, agua, internet)</option>
+            <option value="Seguros">Seguros</option>
+            <option value="Software">Software (EVO / MercadoPago)</option>
+            <option value="Otros">Otros gastos operativos</option>
+          </select>
+          <span class="field-hint">Rubro del egreso</span>
+        </div>
+
+        <div class="field-group">
+          <label for="gInpMonto"><span class="req-dot" style="background:var(--accent-red);"></span>Monto mensual</label>
+          <input type="number" id="gInpMonto" class="field-input" placeholder="Ej. 70000" min="0" value="70000">
+          <span class="field-hint">En pesos mexicanos (MXN)</span>
+        </div>
+
+        <div class="field-group">
+          <label for="gInpTipo"><span class="req-dot" style="background:var(--accent-red);"></span>Tipo de gasto</label>
+          <select id="gInpTipo" class="field-select">
+            <option value="Fijo">Fijo</option>
+            <option value="Variable">Variable</option>
+          </select>
+          <span class="field-hint">Comportamiento del costo</span>
+        </div>
+
+        <div class="field-group">
+          <label for="gInpProveedor">Proveedor / referencia</label>
+          <input type="text" id="gInpProveedor" class="field-input" placeholder="Ej. Soriana Hiper Vado del Río" value="Soriana Hiper Vado del Río">
+          <span class="field-hint">Opcional, para identificar el gasto</span>
+        </div>
+
+        <div class="field-group">
+          <label for="gInpPresupuesto"><span class="req-dot" style="background:var(--accent-red);"></span>Presupuesto mensual</label>
+          <input type="number" id="gInpPresupuesto" class="field-input" placeholder="Ej. 350000" min="0" value="350000">
+          <span class="field-hint">Tope total de egresos planeado</span>
+        </div>
+
+        <div class="field-group">
+          <label for="gInpIngresoRef">Ingreso neto de referencia</label>
+          <input type="number" id="gInpIngresoRef" class="field-input" placeholder="Se autocompleta al calcular ingresos" readonly>
+          <span class="field-hint">Tomado del panel de Ingresos</span>
+        </div>
+
+      </div>
+
+      <!-- Alerta de validación de presupuesto -->
+      <div class="validation-alert" id="gValidationAlert" style="background:rgba(242,169,59,0.08); border-color:rgba(242,169,59,0.45);">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--accent-amber);">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+        <div>
+          <div class="val-title" style="color:#ffd089;">Egresos acumulados por encima del presupuesto</div>
+          <div class="val-desc" id="gValidationText" style="color:#e0c9a9;">El total de gastos registrados supera el presupuesto mensual definido.</div>
+        </div>
+      </div>
+
+      <!-- Botonera -->
+      <div class="action-row">
+        <button class="btn btn-calc" id="gBtnAgregar" style="background:linear-gradient(135deg, #F2528C, #c93869);">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          AGREGAR GASTO
+        </button>
+        <button class="btn btn-reset" id="gBtnReiniciar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 102.13-9.36L1 10"></path></svg>
+          REINICIAR
+        </button>
+        <button class="btn btn-pdf" id="gBtnPdf">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+          EXPORTAR PDF
+        </button>
+        <button class="btn btn-excel" id="gBtnExcel">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          EXPORTAR EXCEL
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= KPIs DE GASTOS ================= -->
+  <section class="section fade-in">
+    <div class="section-head">
+      <div>
+        <div class="section-eyebrow">Resultados de egresos</div>
+        <div class="section-title">Indicadores Clave de Gastos</div>
+      </div>
+    </div>
+    <div class="kpi-grid" id="gKpiGrid"><!-- generado por JS --></div>
+  </section>
+
+  <!-- ================= GRÁFICOS DE GASTOS: Dona + Barras ================= -->
+  <section class="section fade-in">
+    <div class="row-2col">
+      <div class="chart-card">
+        <div class="chart-card-head">
+          <h3><span class="dot" style="background:var(--accent-pink)"></span>Distribución de Gastos por Categoría</h3>
+          <span class="chart-badge">DONA</span>
+        </div>
+        <div class="chart-canvas-wrap"><canvas id="gChartDona"></canvas></div>
+        <div class="legend-row" id="gLegendDona"></div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-card-head">
+          <h3><span class="dot" style="background:var(--accent-red)"></span>Gastos Fijos vs. Variables</h3>
+          <span class="chart-badge">BARRAS</span>
+        </div>
+        <div class="chart-canvas-wrap"><canvas id="gChartFijoVariable"></canvas></div>
+        <div class="legend-row" id="gLegendFijoVariable"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= GAUGE PRESUPUESTO + UTILIDAD NETA ================= -->
+  <section class="section fade-in">
+    <div class="row-3col">
+      <div class="chart-card">
+        <div class="chart-card-head">
+          <h3><span class="dot" style="background:var(--accent-amber)"></span>Uso de Presupuesto</h3>
+          <span class="chart-badge">GAUGE</span>
+        </div>
+        <div class="gauge-wrap">
+          <canvas id="gChartGauge"></canvas>
+          <div class="gauge-value">
+            <div class="gv-num" id="gGaugeNum">0%</div>
+            <div class="gv-label" id="gGaugeSub">$0 / $0</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mini-stat-card">
+        <div class="mini-stat-head">
+          <h3>Total de Egresos</h3>
+          <div class="mini-ring-icon" style="background:rgba(242,85,85,0.16); color:var(--accent-red);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"></polyline><polyline points="17 18 23 18 23 12"></polyline></svg>
+          </div>
+        </div>
+        <div class="mini-stat-value" id="gTotalEgresosVal" style="color:var(--accent-red);">$0</div>
+        <div class="progress-track"><div class="progress-fill" id="gTotalEgresosBar" style="background:linear-gradient(90deg, var(--accent-red), var(--accent-pink));"></div></div>
+        <div class="mini-stat-foot" id="gTotalEgresosFoot">0 movimientos registrados</div>
+      </div>
+
+      <div class="mini-stat-card">
+        <div class="mini-stat-head">
+          <h3>Utilidad Neta</h3>
+          <div class="mini-ring-icon" style="background:rgba(46,204,113,0.16); color:var(--accent-green);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"></path></svg>
+          </div>
+        </div>
+        <div class="mini-stat-value" id="gUtilidadVal" style="color:var(--accent-green);">$0</div>
+        <div class="progress-track"><div class="progress-fill" id="gUtilidadBar" style="background:linear-gradient(90deg, var(--accent-green), var(--accent-teal));"></div></div>
+        <div class="mini-stat-foot" id="gUtilidadFoot">Ingreso neto − Total de egresos</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= COMPARATIVO POR CATEGORÍA ================= -->
+  <section class="section fade-in">
+    <div class="chart-card">
+      <div class="chart-card-head">
+        <h3><span class="dot" style="background:var(--accent-purple)"></span>Egresos por Categoría</h3>
+        <span class="chart-badge">BARRAS HORIZONTALES</span>
+      </div>
+      <div class="chart-canvas-wrap tall"><canvas id="gChartCategorias"></canvas></div>
+    </div>
+  </section>
+
+  <!-- ================= TABLA HISTÓRICA DE GASTOS ================= -->
+  <section class="section fade-in">
+    <div class="table-card">
+      <div class="table-toolbar">
+        <div>
+          <h3>Historial de Gastos</h3>
+        </div>
+        <span class="table-count" id="gHistoryCount">0 registros</span>
+      </div>
+
+      <div class="table-scroll">
+        <table class="history-table" id="gHistoryTable">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Fecha de registro</th>
+              <th>Categoría</th>
+              <th>Tipo</th>
+              <th>Proveedor / referencia</th>
+              <th>Monto</th>
+              <th>% del presupuesto</th>
+            </tr>
+          </thead>
+          <tbody id="gHistoryBody">
+            <!-- filas generadas por JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <div class="empty-state" id="gHistoryEmpty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
+        <div class="es-title">Aún no hay gastos registrados</div>
+        <div class="es-sub">Captura un rubro y presiona AGREGAR GASTO para comenzar a construir el historial de egresos.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= FOOTER ================= -->
+  </div> <!-- fin de #tabDashboard -->
+
+  <!-- ================= TAB: EGRESOS (simulador financiero avanzado) ================= -->
+  <div class="tab-panel" id="tabEgresos" role="tabpanel" aria-labelledby="tabBtnEgresos" hidden>
+    <!-- ============= ENCABEZADO DEL SIMULADOR ============= -->
+    <section class="section fade-in">
+      <div class="section-head">
+        <div>
+          <div class="section-eyebrow">Simulador financiero completo</div>
+          <div class="section-title">💰 Egresos, Rentabilidad y Punto de Equilibrio</div>
+        </div>
+        <div class="sim-live-badge" data-tip="Todo se recalcula al instante, sin botón">
+          <span class="sim-live-dot"></span>
+          Cálculo en vivo
+        </div>
+      </div>
+    </section>
+
+    <!-- ============= SEMÁFORO DE SALUD FINANCIERA ============= -->
+    <section class="section fade-in">
+      <div class="semaforo-card" id="semaforoCard">
+        <div class="semaforo-light" id="semaforoLight">
+          <span class="semaforo-dot" id="semaforoDot"></span>
+        </div>
+        <div class="semaforo-text">
+          <div class="semaforo-title" id="semaforoTitle">Calculando salud financiera…</div>
+          <div class="semaforo-sub" id="semaforoSub">Captura tus egresos para ver el semáforo de utilidad y margen.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============= TARJETA GRANDE: EGRESOS (2 columnas) ============= -->
+    <section class="section fade-in">
+      <div class="section-head">
+        <div>
+          <div class="section-eyebrow">Captura de egresos detallada</div>
+          <div class="section-title">Estructura de Costos</div>
+        </div>
+      </div>
+
+      <div class="egresos-card">
+        <div class="egresos-cols">
+
+          <!-- COLUMNA: GASTOS FIJOS -->
+          <div class="egresos-col">
+            <div class="egresos-col-head">
+              <div class="egresos-col-icon fijo">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0110 0v4"></path></svg>
+              </div>
+              <div>
+                <h3>Gastos Fijos</h3>
+                <span>Egresos recurrentes mensuales</span>
+              </div>
+            </div>
+
+            <div class="egresos-fields" id="fijosFields">
+              <!-- generado por JS: Renta, Nómina, Luz, Agua, Internet, Marketing, Software, Mantenimiento, Contador, Limpieza, Seguros, Otros -->
+            </div>
+
+            <div class="egresos-subtotal">
+              <span>Subtotal fijos</span>
+              <b id="subtotalFijos">$0</b>
+            </div>
+          </div>
+
+          <!-- COLUMNA: GASTOS VARIABLES -->
+          <div class="egresos-col">
+            <div class="egresos-col-head">
+              <div class="egresos-col-icon variable">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+              </div>
+              <div>
+                <h3>Gastos Variables</h3>
+                <span>Egresos que cambian con la operación</span>
+              </div>
+            </div>
+
+            <div class="egresos-fields" id="variablesFields">
+              <!-- generado por JS: Comisión bancaria adicional, Papelería, Insumos, Reparaciones, Imprevistos, Otros -->
+            </div>
+
+            <div class="egresos-subtotal">
+              <span>Subtotal variables</span>
+              <b id="subtotalVariables">$0</b>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="egresos-total-bar">
+          <div class="egresos-total-item">
+            <span>Total Egresos</span>
+            <b id="totalEgresosSim">$0</b>
+          </div>
+          <div class="egresos-total-divider"></div>
+          <div class="egresos-total-item isr-field">
+            <label for="inpISR">ISR <span class="field-hint" style="margin-top:0;">(sobre utilidad operativa positiva)</span></label>
+            <div class="isr-input-wrap">
+              <input type="number" id="inpISR" class="field-input" value="30" min="0" max="100" step="0.5">
+              <span class="isr-pct-sign">%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============= KPIs NUEVOS: RENTABILIDAD ============= -->
+    <section class="section fade-in">
+      <div class="section-head">
+        <div>
+          <div class="section-eyebrow">Resultado financiero integral</div>
+          <div class="section-title">Indicadores de Rentabilidad</div>
+        </div>
+      </div>
+      <div class="kpi-grid" id="simKpiGrid"><!-- generado por JS: 12 KPIs --></div>
+    </section>
+
+    <!-- ============= MÉTRICAS EXTRA: MRR / ARR / ROI ============= -->
+    <section class="section fade-in">
+      <div class="section-head">
+        <div>
+          <div class="section-eyebrow">Métricas recurrentes y de inversión</div>
+          <div class="section-title">MRR, ARR y Retorno de Inversión</div>
+        </div>
+      </div>
+
+      <div class="capture-panel" style="margin-bottom:16px;">
+        <div class="capture-grid" style="grid-template-columns:repeat(3, 1fr);">
+          <div class="field-group">
+            <label for="inpInversionInicial"><span class="req-dot" style="background:var(--accent-teal);"></span>Inversión inicial</label>
+            <input type="number" id="inpInversionInicial" class="field-input" placeholder="Ej. 18000000" min="0" value="18000000">
+            <span class="field-hint">Capital invertido en el proyecto (MXN)</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="kpi-grid" id="extraKpiGrid"><!-- generado por JS: MRR, ARR, ingreso diario/semanal/mensual/anual, márgenes, utilidad por cliente, ROI, Payback --></div>
+    </section>
+
+    <!-- ============= GRÁFICA: INGRESOS / EGRESOS / UTILIDAD ============= -->
+    <section class="section fade-in">
+      <div class="row-2col">
+        <div class="chart-card">
+          <div class="chart-card-head">
+            <h3><span class="dot" style="background:var(--accent-blue)"></span>Ingresos, Egresos y Utilidad</h3>
+            <span class="chart-badge">BARRAS</span>
+          </div>
+          <div class="chart-canvas-wrap"><canvas id="simChartResultado"></canvas></div>
+          <div class="legend-row" id="simLegendResultado"></div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-card-head">
+            <h3><span class="dot" style="background:var(--accent-pink)"></span>Distribución de Egresos</h3>
+            <span class="chart-badge">DONA</span>
+          </div>
+          <div class="chart-canvas-wrap"><canvas id="simChartDona"></canvas></div>
+          <div class="legend-row" id="simLegendDona"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============= GRÁFICA: SENSIBILIDAD DE PRECIO ============= -->
+    <section class="section fade-in">
+      <div class="chart-card">
+        <div class="chart-card-head">
+          <h3><span class="dot" style="background:var(--accent-green)"></span>Sensibilidad de Utilidad vs. Precio</h3>
+          <span class="chart-badge">LÍNEA</span>
+        </div>
+        <div class="chart-canvas-wrap tall"><canvas id="simChartSensibilidad"></canvas></div>
+      </div>
+    </section>
+
+    <!-- ============= TABLA DE ESCENARIOS ============= -->
+    <section class="section fade-in">
+      <div class="table-card">
+        <div class="table-toolbar">
+          <div>
+            <h3>Tabla de Escenarios por Precio</h3>
+          </div>
+          <span class="table-count" id="escenariosCount">9 escenarios</span>
+        </div>
+
+        <div class="table-scroll">
+          <table class="history-table" id="escenariosTable">
+            <thead>
+              <tr>
+                <th>Precio</th>
+                <th>Ingreso</th>
+                <th>Egresos</th>
+                <th>Utilidad</th>
+                <th>Margen</th>
+                <th>Punto de equilibrio</th>
+                <th>Clientes faltantes</th>
+              </tr>
+            </thead>
+            <tbody id="escenariosBody">
+              <!-- filas generadas por JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============= BOTONERA DE EXPORTACIÓN ============= -->
+    <section class="section fade-in" style="margin-bottom:6px;">
+      <div class="capture-panel">
+        <div class="action-row" style="margin-top:0; padding-top:0; border-top:none;">
+          <button class="btn btn-pdf" id="simBtnPdf">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+            EXPORTAR PDF DE EGRESOS
+          </button>
+          <button class="btn btn-excel" id="simBtnExcel">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            EXPORTAR EXCEL DE EGRESOS
+          </button>
+        </div>
+      </div>
+    </section>
+
+  </div> <!-- fin de #tabEgresos -->
+
+  <footer class="dash-footer">
+
+    <span>CRACKS GYM Financial Dashboard &middot; Simulador interno de membresías &middot; v1.0</span>
+    <div class="footer-tags">
+      <span class="footer-tag">Datos en tiempo real</span>
+      <span class="footer-tag">MXN</span>
+      <span class="footer-tag" id="footerSessionTag">Sesión activa</span>
+    </div>
+  </footer>
+
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+  <span id="toastText">Mensaje</span>
+</div>
+
+<script>
+/* =========================================================================
+   NAVEGACIÓN POR PESTAÑAS — independiente de las librerías CDN, para que
+   el cambio de pestaña Dashboard / Egresos funcione siempre, incluso si
+   Chart.js, SheetJS o html2pdf no llegaran a cargar.
+   ========================================================================= */
+(function(){
+  "use strict";
+  const tabBtns = document.querySelectorAll('.tab-btn');
+  const tabPanels = document.querySelectorAll('.tab-panel');
+
+  tabBtns.forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const target = btn.getAttribute('data-tab');
+
+      tabBtns.forEach(b=>{
+        const isActive = b === btn;
+        b.classList.toggle('active', isActive);
+        b.setAttribute('aria-selected', isActive ? 'true' : 'false');
+      });
+
+      tabPanels.forEach(panel=>{
+        const show = panel.id === target;
+        panel.classList.toggle('active', show);
+        if (show){ panel.removeAttribute('hidden'); }
+        else { panel.setAttribute('hidden',''); }
+      });
+
+      // Redimensiona los charts de Chart.js al hacerlos visibles de nuevo,
+      // ya que canvas con display:none no calculan tamaño correctamente.
+      if (typeof Chart !== 'undefined' && Chart.instances){
+        requestAnimationFrame(()=>{
+          Object.values(Chart.instances).forEach(c=>{ try{ c.resize(); }catch(e){} });
+        });
+      }
+    });
+  });
+})();
+</script>
+
+<script>
+/* =========================================================================
+   CRACKS GYM FINANCIAL DASHBOARD — LÓGICA PRINCIPAL
+   Estructura:
+     1. Utilidades de formato
+     2. Reloj / fecha en tiempo real
+     3. Referencias DOM
+     4. Estado global + historial
+     5. Validación de inscritos = domiciliados + no domiciliados
+     6. Motor de cálculo financiero
+     7. Render de KPIs (con animación de contador)
+     8. Charts: dona, barras, gauge, barras horizontales
+     9. Tabla histórica
+    10. Exportación PDF / Excel
+    11. Eventos / inicialización
+   ========================================================================= */
+
+(function(){
+  "use strict";
+
+  // Espera a que terminen los intentos de carga por CDN alterno (si hubo
+  // que recurrir a ellos) antes de arrancar el dashboard. Si no existe la
+  // promesa (porque todo cargó bien desde el inicio) o si falla, se sigue
+  // de cualquier forma para mostrar el aviso correspondiente.
+  const readySignal = window.__cracksgymLibsReady || Promise.resolve();
+  readySignal.then(init).catch(init);
+
+  function init(){
+
+  /* =====================================================================
+     0. VERIFICACIÓN DE LIBRERÍAS EXTERNAS (CDN)
+     Si Chart.js, SheetJS o html2pdf no cargaron (sin internet, CDN
+     bloqueado por firewall/extensión, etc.), se muestra un aviso claro
+     en pantalla en vez de dejar que el script truene en silencio.
+     ===================================================================== */
+  const missingLibs = [];
+  if (typeof Chart === 'undefined') missingLibs.push('Chart.js (gráficos)');
+  if (typeof XLSX === 'undefined') missingLibs.push('SheetJS (exportar Excel)');
+  if (typeof html2pdf === 'undefined') missingLibs.push('html2pdf.js (exportar PDF)');
+
+  if (missingLibs.length > 0){
+    const banner = document.createElement('div');
+    banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#3a1414;color:#ffb4b4;border-bottom:1px solid #7a2a2a;padding:14px 20px;font-family:"Segoe UI",sans-serif;font-size:13.5px;font-weight:600;text-align:center;';
+    banner.innerHTML = '⚠ No se pudieron cargar las siguientes librerías: <b>' + missingLibs.join(', ') + '</b>. Esto suele pasar dentro de la vista previa de Claude (sandbox sin internet). Descarga el archivo y ábrelo directamente en tu navegador (doble clic) para que cargue con tu conexión normal.';
+    document.body.prepend(banner);
+    console.error('CRACKS GYM Dashboard: librerías no cargadas:', missingLibs);
+    // No se detiene la ejecución: los campos, validación y KPIs básicos
+    // seguirán funcionando aunque los gráficos/exportaciones fallen.
+  }
+
+  /* =====================================================================
+     1. UTILIDADES DE FORMATO
+     ===================================================================== */
+  const fmtMXN = (num) => {
+    if (isNaN(num) || !isFinite(num)) num = 0;
+    return num.toLocaleString('es-MX', { style:'currency', currency:'MXN', maximumFractionDigits:0 });
+  };
+  const fmtNum = (num) => {
+    if (isNaN(num) || !isFinite(num)) num = 0;
+    return Math.round(num).toLocaleString('es-MX');
+  };
+  const fmtPct = (num, decimals=1) => {
+    if (isNaN(num) || !isFinite(num)) num = 0;
+    return num.toFixed(decimals) + '%';
+  };
+  const clamp = (v, min, max) => Math.min(Math.max(v, min), max);
+
+  /* =====================================================================
+     2. RELOJ / FECHA EN TIEMPO REAL
+     ===================================================================== */
+  const headerDate = document.getElementById('headerDate');
+  const headerTime = document.getElementById('headerTime');
+
+  function updateClock(){
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('es-MX', { weekday:'long', day:'2-digit', month:'long', year:'numeric' });
+    const timeStr = now.toLocaleTimeString('es-MX', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true });
+    headerDate.textContent = dateStr.charAt(0).toUpperCase() + dateStr.slice(1);
+    headerTime.textContent = timeStr;
+  }
+  updateClock();
+  setInterval(updateClock, 1000);
+
+  /* =====================================================================
+     3. REFERENCIAS DOM
+     ===================================================================== */
+  const inpInscritos      = document.getElementById('inpInscritos');
+  const inpPrecio         = document.getElementById('inpPrecio');
+  const inpDomiciliados   = document.getElementById('inpDomiciliados');
+  const inpNoDomiciliados = document.getElementById('inpNoDomiciliados');
+  const inpComision       = document.getElementById('inpComision');
+  const inpMeta           = document.getElementById('inpMeta');
+
+  const validationAlert = document.getElementById('validationAlert');
+  const validationText  = document.getElementById('validationText');
+
+  const btnCalcular  = document.getElementById('btnCalcular');
+  const btnReiniciar = document.getElementById('btnReiniciar');
+  const btnPdf       = document.getElementById('btnPdf');
+  const btnExcel     = document.getElementById('btnExcel');
+
+  const kpiGrid = document.getElementById('kpiGrid');
+
+  const toast = document.getElementById('toast');
+  const toastText = document.getElementById('toastText');
+
+  /* =====================================================================
+     4. ESTADO GLOBAL
+     ===================================================================== */
+  let lastResult = null;     // último cálculo válido
+  let modulesReady = false;  // true cuando Gastos y Simulador ya declararon sus variables
+  let history = [];          // historial de simulaciones
+  let isValid = false;       // estado de validación actual
+
+  let charts = {
+    dona: null,
+    ingresos: null,
+    gauge: null,
+    comparativo: null
+  };
+
+  const DEFAULTS = {
+    inscritos: 800,
+    precio: 399,
+    domiciliados: 650,
+    noDomiciliados: 150,
+    comision: 2.5,
+    meta: 800
+  };
+
+  /* =====================================================================
+     5. VALIDACIÓN
+     ===================================================================== */
+  function validateInputs(){
+    const inscritos = parseFloat(inpInscritos.value) || 0;
+    const dom = parseFloat(inpDomiciliados.value) || 0;
+    const noDom = parseFloat(inpNoDomiciliados.value) || 0;
+
+    const suma = dom + noDom;
+    const valid = suma === inscritos && inscritos > 0;
+
+    if (!valid){
+      validationAlert.classList.add('show');
+      if (inscritos <= 0){
+        validationText.textContent = 'Captura un número de inscritos mayor a cero para continuar.';
+      } else {
+        validationText.textContent = `La suma de domiciliados y no domiciliados debe ser igual al número de inscritos. Actualmente: ${fmtNum(dom)} + ${fmtNum(noDom)} = ${fmtNum(suma)}, pero inscritos = ${fmtNum(inscritos)}.`;
+      }
+      btnCalcular.disabled = true;
+    } else {
+      validationAlert.classList.remove('show');
+      btnCalcular.disabled = false;
+    }
+
+    isValid = valid;
+    return valid;
+  }
+
+  [inpInscritos, inpDomiciliados, inpNoDomiciliados].forEach(el=>{
+    el.addEventListener('input', validateInputs);
+  });
+
+  /* =====================================================================
+     6. MOTOR DE CÁLCULO FINANCIERO
+     ===================================================================== */
+  function calcular(){
+    const inscritos      = parseFloat(inpInscritos.value) || 0;
+    const precio         = parseFloat(inpPrecio.value) || 0;
+    const domiciliados   = parseFloat(inpDomiciliados.value) || 0;
+    const noDomiciliados = parseFloat(inpNoDomiciliados.value) || 0;
+    const comisionPct    = parseFloat(inpComision.value) || 0;
+    const meta           = parseFloat(inpMeta.value) || 0;
+
+    const ingresoBruto         = inscritos * precio;
+    const ingresoDomiciliados  = domiciliados * precio;
+    const ingresoNoDomiciliados= noDomiciliados * precio;
+    const comisionBancaria     = ingresoDomiciliados * (comisionPct/100);
+    const ingresoNeto          = ingresoBruto - comisionBancaria;
+    const ticketPromedio       = inscritos > 0 ? ingresoBruto / inscritos : 0;
+    const pctDomiciliados      = inscritos > 0 ? (domiciliados/inscritos)*100 : 0;
+    const pctNoDomiciliados    = inscritos > 0 ? (noDomiciliados/inscritos)*100 : 0;
+    const cumplimientoMeta     = meta > 0 ? (inscritos/meta)*100 : 0;
+
+    return {
+      inscritos, precio, domiciliados, noDomiciliados, comisionPct, meta,
+      ingresoBruto, ingresoDomiciliados, ingresoNoDomiciliados,
+      comisionBancaria, ingresoNeto, ticketPromedio,
+      pctDomiciliados, pctNoDomiciliados, cumplimientoMeta,
+      timestamp: new Date()
+    };
+  }
+
+  /* =====================================================================
+     7. RENDER DE KPIs
+     ===================================================================== */
+  const KPI_DEFS = [
+    { key:'inscritos',        label:'Inscritos',            accent:'var(--accent-blue)',   isMoney:false, icon:'users' },
+    { key:'precio',           label:'Precio mensual',       accent:'var(--accent-teal)',   isMoney:true,  icon:'tag' },
+    { key:'ingresoBruto',     label:'Ingreso bruto',        accent:'var(--accent-purple)', isMoney:true,  icon:'trending-up' },
+    { key:'ingresoNeto',      label:'Ingreso neto',         accent:'var(--accent-green)',  isMoney:true,  icon:'check-circle' },
+    { key:'comisionBancaria', label:'Comisiones bancarias', accent:'var(--accent-red)',    isMoney:true,  icon:'percent' },
+    { key:'domiciliados',     label:'Domiciliados',         accent:'var(--accent-blue)',   isMoney:false, icon:'credit-card' },
+    { key:'noDomiciliados',   label:'No domiciliados',      accent:'var(--accent-amber)',  isMoney:false, icon:'wallet' },
+    { key:'ticketPromedio',   label:'Ticket promedio',      accent:'var(--accent-pink)',   isMoney:true,  icon:'receipt' },
+  ];
+
+  const ICONS = {
+    'users': '<path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 00-3-3.87"></path><path d="M16 3.13a4 4 0 010 7.75"></path>',
+    'tag': '<path d="M20.59 13.41L13.42 20.6a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line>',
+    'trending-up': '<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline>',
+    'check-circle': '<path d="M22 11.08V12a10 10 0 11-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline>',
+    'percent': '<line x1="19" y1="5" x2="5" y2="19"></line><circle cx="6.5" cy="6.5" r="2.5"></circle><circle cx="17.5" cy="17.5" r="2.5"></circle>',
+    'credit-card': '<rect x="1" y="4" width="22" height="16" rx="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line>',
+    'wallet': '<path d="M21 12V7H5a2 2 0 010-4h14v4"></path><path d="M3 5v14a2 2 0 002 2h16v-5"></path><path d="M18 12a2 2 0 000 4h4v-4z"></path>',
+    'receipt': '<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1z"></path><line x1="8" y1="7" x2="16" y2="7"></line><line x1="8" y1="11" x2="16" y2="11"></line><line x1="8" y1="15" x2="13" y2="15"></line>',
+  };
+
+  function buildKpiSkeleton(){
+    kpiGrid.innerHTML = KPI_DEFS.map((def, i) => `
+      <div class="kpi-card fade-in fade-in-d${(i % 4)+1}" style="--kpi-accent:${def.accent}">
+        <div class="kpi-top">
+          <div class="kpi-icon">${'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+ICONS[def.icon]+'</svg>'}</div>
+          <div class="kpi-trend flat" id="trend-${def.key}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            <span>0%</span>
+          </div>
+        </div>
+        <div class="kpi-label">${def.label}</div>
+        <div class="kpi-value" id="kpi-${def.key}">0</div>
+        <div class="kpi-sub" id="kpi-sub-${def.key}">Sin datos aún</div>
+      </div>
+    `).join('');
+  }
+  buildKpiSkeleton();
+
+  // Animación de contador (cuenta desde 0 hasta el valor final)
+  function animateCounter(el, endValue, isMoney, duration=900){
+    const startValue = 0;
+    const startTime = performance.now();
+    function tick(now){
+      const progress = clamp((now - startTime) / duration, 0, 1);
+      const eased = 1 - Math.pow(1-progress, 3); // ease-out cubic
+      const current = startValue + (endValue - startValue) * eased;
+      el.textContent = isMoney ? fmtMXN(current) : fmtNum(current);
+      if (progress < 1){ requestAnimationFrame(tick); }
+      else { el.textContent = isMoney ? fmtMXN(endValue) : fmtNum(endValue); }
+    }
+    requestAnimationFrame(tick);
+  }
+
+  function renderKpis(result, previous){
+    KPI_DEFS.forEach(def=>{
+      const el = document.getElementById('kpi-'+def.key);
+      const subEl = document.getElementById('kpi-sub-'+def.key);
+      const trendEl = document.getElementById('trend-'+def.key);
+      if (!el) return;
+
+      animateCounter(el, result[def.key], def.isMoney);
+
+      // sub-texto contextual
+      if (def.key === 'inscritos') subEl.textContent = `Meta: ${fmtNum(result.meta)} socios`;
+      else if (def.key === 'precio') subEl.textContent = 'Cuota mensual vigente';
+      else if (def.key === 'ingresoBruto') subEl.textContent = `Ticket prom. ${fmtMXN(result.ticketPromedio)}`;
+      else if (def.key === 'ingresoNeto') subEl.textContent = `${fmtPct(100 - (result.comisionBancaria/(result.ingresoBruto||1))*100)} del bruto`;
+      else if (def.key === 'comisionBancaria') subEl.textContent = `${result.comisionPct}% sobre domiciliados`;
+      else if (def.key === 'domiciliados') subEl.textContent = `${fmtPct(result.pctDomiciliados)} del total`;
+      else if (def.key === 'noDomiciliados') subEl.textContent = `${fmtPct(result.pctNoDomiciliados)} del total`;
+      else if (def.key === 'ticketPromedio') subEl.textContent = 'Ingreso bruto ÷ inscritos';
+
+      // tendencia respecto al cálculo anterior
+      if (previous){
+        const diff = result[def.key] - previous[def.key];
+        const diffPct = previous[def.key] !== 0 ? (diff/previous[def.key])*100 : (result[def.key]>0?100:0);
+        trendEl.classList.remove('up','down','flat');
+        let arrow = '<line x1="5" y1="12" x2="19" y2="12"></line>';
+        if (diffPct > 0.05){ trendEl.classList.add('up'); arrow='<polyline points="18 15 12 9 6 15"></polyline>'; }
+        else if (diffPct < -0.05){ trendEl.classList.add('down'); arrow='<polyline points="6 9 12 15 18 9"></polyline>'; }
+        else { trendEl.classList.add('flat'); }
+        trendEl.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">${arrow}</svg><span>${diffPct>=0?'+':''}${diffPct.toFixed(1)}%</span>`;
+      } else {
+        trendEl.classList.remove('up','down'); trendEl.classList.add('flat');
+        trendEl.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg><span>Base</span>`;
+      }
+    });
+  }
+
+  /* =====================================================================
+     8. CHARTS
+     ===================================================================== */
+  if (typeof Chart !== 'undefined'){
+    Chart.defaults.font.family = "'Segoe UI', sans-serif";
+    Chart.defaults.color = '#B4B4B8';
+  }
+
+  const COLOR_DOM = '#2E9BF5';
+  const COLOR_NODOM = '#F2A93B';
+  const COLOR_BRUTO = '#9B6BF2';
+  const COLOR_NETO = '#2ECC71';
+  const COLOR_COMISION = '#F25555';
+
+  function destroyChart(key){
+    if (charts[key]){ charts[key].destroy(); charts[key]=null; }
+  }
+
+  // --- Dona: distribución domiciliados / no domiciliados ---
+  function renderDona(result){
+    if (typeof Chart === 'undefined') return;
+    destroyChart('dona');
+    const ctx = document.getElementById('chartDona').getContext('2d');
+    charts.dona = new Chart(ctx, {
+      type:'doughnut',
+      data:{
+        labels:['Domiciliados','No domiciliados'],
+        datasets:[{
+          data:[result.domiciliados, result.noDomiciliados],
+          backgroundColor:[COLOR_DOM, COLOR_NODOM],
+          borderColor:'#2A2A2A',
+          borderWidth:3,
+          hoverOffset:10,
+        }]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        cutout:'68%',
+        plugins:{
+          legend:{ display:false },
+          tooltip:{
+            backgroundColor:'#101012', borderColor:'#3a3a40', borderWidth:1, padding:10,
+            titleFont:{weight:'700'},
+            callbacks:{
+              label: (ctx)=> `${ctx.label}: ${fmtNum(ctx.parsed)} socios (${fmtPct((ctx.parsed/result.inscritos)*100)})`
+            }
+          }
+        },
+        animation:{ animateScale:true, animateRotate:true, duration:900, easing:'easeOutCubic' }
+      }
+    });
+
+    document.getElementById('legendDona').innerHTML = `
+      <div class="legend-item"><span class="legend-swatch" style="background:${COLOR_DOM}"></span>Domiciliados <b>${fmtNum(result.domiciliados)}</b></div>
+      <div class="legend-item"><span class="legend-swatch" style="background:${COLOR_NODOM}"></span>No domiciliados <b>${fmtNum(result.noDomiciliados)}</b></div>
+    `;
+  }
+
+  // --- Barras: composición de ingresos ---
+  function renderIngresos(result){
+    if (typeof Chart === 'undefined') return;
+    destroyChart('ingresos');
+    const ctx = document.getElementById('chartIngresos').getContext('2d');
+    charts.ingresos = new Chart(ctx, {
+      type:'bar',
+      data:{
+        labels:['Ingreso bruto','Ingreso neto','Comisiones'],
+        datasets:[{
+          data:[result.ingresoBruto, result.ingresoNeto, result.comisionBancaria],
+          backgroundColor:[COLOR_BRUTO, COLOR_NETO, COLOR_COMISION],
+          borderRadius:8,
+          maxBarThickness:64,
+        }]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{
+          legend:{ display:false },
+          tooltip:{
+            backgroundColor:'#101012', borderColor:'#3a3a40', borderWidth:1, padding:10,
+            callbacks:{ label:(ctx)=> fmtMXN(ctx.parsed.y) }
+          }
+        },
+        scales:{
+          x:{ grid:{ display:false }, ticks:{ font:{weight:'600'} } },
+          y:{ grid:{ color:'#333335' }, ticks:{ callback:(v)=> '$'+ (v/1000).toFixed(0)+'k' } }
+        },
+        animation:{ duration:900, easing:'easeOutCubic' }
+      }
+    });
+
+    document.getElementById('legendIngresos').innerHTML = `
+      <div class="legend-item"><span class="legend-swatch" style="background:${COLOR_BRUTO}"></span>Bruto <b>${fmtMXN(result.ingresoBruto)}</b></div>
+      <div class="legend-item"><span class="legend-swatch" style="background:${COLOR_NETO}"></span>Neto <b>${fmtMXN(result.ingresoNeto)}</b></div>
+      <div class="legend-item"><span class="legend-swatch" style="background:${COLOR_COMISION}"></span>Comisión <b>${fmtMXN(result.comisionBancaria)}</b></div>
+    `;
+  }
+
+  // --- Gauge circular: cumplimiento de meta ---
+  function renderGauge(result){
+    if (typeof Chart === 'undefined') return;
+    destroyChart('gauge');
+    const pct = clamp(result.cumplimientoMeta, 0, 100);
+    const ctx = document.getElementById('chartGauge').getContext('2d');
+
+    let gaugeColor = COLOR_COMISION;
+    if (pct >= 75) gaugeColor = COLOR_NETO;
+    else if (pct >= 40) gaugeColor = '#F2A93B';
+
+    charts.gauge = new Chart(ctx, {
+      type:'doughnut',
+      data:{
+        datasets:[{
+          data:[pct, 100-pct],
+          backgroundColor:[gaugeColor, '#1f1f21'],
+          borderWidth:0,
+          circumference:270,
+          rotation:225,
+        }]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        cutout:'78%',
+        plugins:{ legend:{display:false}, tooltip:{enabled:false} },
+        animation:{ duration:1000, easing:'easeOutCubic' }
+      }
+    });
+
+    document.getElementById('gaugeNum').textContent = fmtPct(pct, 1);
+    document.getElementById('gaugeNum').style.color = gaugeColor;
+    document.getElementById('gaugeSub').textContent = `${fmtNum(result.inscritos)} / ${fmtNum(result.meta)} socios`;
+  }
+
+  // --- Barras horizontales: comparativo ---
+  function renderComparativo(result){
+    if (typeof Chart === 'undefined') return;
+    destroyChart('comparativo');
+    const ctx = document.getElementById('chartComparativo').getContext('2d');
+    charts.comparativo = new Chart(ctx, {
+      type:'bar',
+      data:{
+        labels:['Inscritos','Meta','Domiciliados','No domiciliados'],
+        datasets:[{
+          data:[result.inscritos, result.meta, result.domiciliados, result.noDomiciliados],
+          backgroundColor:[COLOR_BRUTO, '#F2A93B', COLOR_DOM, '#F2528C'],
+          borderRadius:8,
+          maxBarThickness:34,
+        }]
+      },
+      options:{
+        indexAxis:'y',
+        responsive:true, maintainAspectRatio:false,
+        plugins:{
+          legend:{ display:false },
+          tooltip:{
+            backgroundColor:'#101012', borderColor:'#3a3a40', borderWidth:1, padding:10,
+            callbacks:{ label:(ctx)=> fmtNum(ctx.parsed.x) + ' socios' }
+          }
+        },
+        scales:{
+          x:{ grid:{ color:'#333335' }, ticks:{ callback:(v)=> fmtNum(v) } },
+          y:{ grid:{ display:false }, ticks:{ font:{weight:'700', size:12.5} } }
+        },
+        animation:{ duration:900, easing:'easeOutCubic' }
+      }
+    });
+  }
+
+  // --- Mini stats: % domiciliados / % no domiciliados ---
+  function renderMiniStats(result){
+    document.getElementById('pctDomiciliadosVal').textContent = fmtPct(result.pctDomiciliados);
+    document.getElementById('pctDomiciliadosFoot').textContent = `${fmtNum(result.domiciliados)} de ${fmtNum(result.inscritos)} socios con domiciliación`;
+    requestAnimationFrame(()=>{ document.getElementById('pctDomiciliadosBar').style.width = clamp(result.pctDomiciliados,0,100)+'%'; });
+
+    document.getElementById('pctNoDomiciliadosVal').textContent = fmtPct(result.pctNoDomiciliados);
+    document.getElementById('pctNoDomiciliadosFoot').textContent = `${fmtNum(result.noDomiciliados)} de ${fmtNum(result.inscritos)} socios sin domiciliación`;
+    requestAnimationFrame(()=>{ document.getElementById('pctNoDomiciliadosBar').style.width = clamp(result.pctNoDomiciliados,0,100)+'%'; });
+  }
+
+  /* =====================================================================
+     9. TABLA HISTÓRICA
+     ===================================================================== */
+  const historyBody = document.getElementById('historyBody');
+  const historyEmpty = document.getElementById('historyEmpty');
+  const historyCount = document.getElementById('historyCount');
+  const historyTable = document.getElementById('historyTable');
+
+  function addHistoryRow(result){
+    history.unshift(result); // más reciente primero
+    renderHistoryTable();
+  }
+
+  function renderHistoryTable(){
+    if (history.length === 0){
+      historyTable.style.display = 'none';
+      historyEmpty.style.display = 'flex';
+      historyCount.textContent = '0 registros';
+      return;
+    }
+    historyTable.style.display = 'table';
+    historyEmpty.style.display = 'none';
+    historyCount.textContent = `${history.length} registro${history.length>1?'s':''}`;
+
+    historyBody.innerHTML = history.map((r, idx)=>{
+      const num = history.length - idx;
+      const fechaStr = r.timestamp.toLocaleString('es-MX', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+      return `
+        <tr class="fade-in">
+          <td class="col-strong">${num}</td>
+          <td>${fechaStr}</td>
+          <td>${fmtNum(r.inscritos)}</td>
+          <td>${fmtMXN(r.precio)}</td>
+          <td>${fmtNum(r.domiciliados)}</td>
+          <td>${fmtNum(r.noDomiciliados)}</td>
+          <td class="col-strong">${fmtMXN(r.ingresoBruto)}</td>
+          <td class="col-neg">-${fmtMXN(r.comisionBancaria)}</td>
+          <td class="col-pos">${fmtMXN(r.ingresoNeto)}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  /* =====================================================================
+     10. EXPORTACIÓN PDF / EXCEL
+     ===================================================================== */
+  function showToast(message, type='success'){
+    toastText.textContent = message;
+    toast.classList.remove('success','error','info');
+    toast.classList.add(type, 'show');
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(()=> toast.classList.remove('show'), 3200);
+  }
+
+  btnPdf.addEventListener('click', ()=>{
+    if (typeof html2pdf === 'undefined'){
+      showToast('No se pudo cargar html2pdf.js. Verifica tu conexión a internet.', 'error');
+      return;
+    }
+    if (!lastResult){
+      showToast('Calcula al menos una vez antes de exportar a PDF.', 'error');
+      return;
+    }
+    const root = document.getElementById('dashboardRoot');
+    root.classList.add('exporting');
+    showToast('Generando PDF, un momento…', 'info');
+
+    const opt = {
+      margin:       [6,6,6,6],
+      filename:     `CRACKSGYM_Dashboard_${new Date().toISOString().slice(0,10)}.pdf`,
+      image:        { type:'jpeg', quality:0.97 },
+      html2canvas:  { scale:2, backgroundColor:'#1E1E1E', useCORS:true },
+      jsPDF:        { unit:'mm', format:'a3', orientation:'portrait' }
+    };
+
+    html2pdf().set(opt).from(root).save().then(()=>{
+      root.classList.remove('exporting');
+      showToast('PDF exportado correctamente.', 'success');
+    }).catch(()=>{
+      root.classList.remove('exporting');
+      showToast('Ocurrió un error al exportar el PDF.', 'error');
+    });
+  });
+
+  btnExcel.addEventListener('click', ()=>{
+    if (typeof XLSX === 'undefined'){
+      showToast('No se pudo cargar SheetJS. Verifica tu conexión a internet.', 'error');
+      return;
+    }
+    if (history.length === 0){
+      showToast('No hay historial de simulaciones para exportar.', 'error');
+      return;
+    }
+
+    const rows = history.slice().reverse().map((r, idx)=>({
+      '#': idx+1,
+      'Fecha de simulación': r.timestamp.toLocaleString('es-MX'),
+      'Inscritos': r.inscritos,
+      'Precio mensual (MXN)': r.precio,
+      'Domiciliados': r.domiciliados,
+      'No domiciliados': r.noDomiciliados,
+      '% Domiciliados': Number(r.pctDomiciliados.toFixed(2)),
+      '% No domiciliados': Number(r.pctNoDomiciliados.toFixed(2)),
+      'Comisión bancaria (%)': r.comisionPct,
+      'Ingreso bruto (MXN)': Math.round(r.ingresoBruto),
+      'Comisión bancaria (MXN)': Math.round(r.comisionBancaria),
+      'Ingreso neto (MXN)': Math.round(r.ingresoNeto),
+      'Ticket promedio (MXN)': Math.round(r.ticketPromedio),
+      'Meta de clientes': r.meta,
+      'Cumplimiento de meta (%)': Number(r.cumplimientoMeta.toFixed(2)),
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!cols'] = Object.keys(rows[0]).map(k => ({ wch: Math.max(14, k.length+2) }));
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Historial CRACKS GYM');
+    XLSX.writeFile(wb, `CRACKSGYM_Historial_${new Date().toISOString().slice(0,10)}.xlsx`);
+
+    showToast('Excel exportado correctamente.', 'success');
+  });
+
+  /* =====================================================================
+     11. EVENTOS / INICIALIZACIÓN
+     ===================================================================== */
+  btnCalcular.addEventListener('click', ()=>{
+    if (!validateInputs()){
+      showToast('Corrige las inconsistencias antes de calcular.', 'error');
+      return;
+    }
+    const result = calcular();
+    const previous = lastResult;
+    lastResult = result;
+
+    renderKpis(result, previous);
+    renderDona(result);
+    renderIngresos(result);
+    renderGauge(result);
+    renderComparativo(result);
+    renderMiniStats(result);
+    addHistoryRow(result);
+
+    // Refresca los módulos de Gastos y Simulador para reflejar el nuevo
+    // ingreso neto, pero SOLO si ya terminaron de inicializarse (evita el
+    // "temporal dead zone" de sus const cuando este handler se auto-dispara
+    // durante el arranque, antes de que esos módulos se declaren).
+    if (modulesReady && typeof gRefreshAll === 'function'){ gRefreshAll(); }
+    if (modulesReady && typeof simRefreshAll === 'function'){ simRefreshAll(); }
+
+    showToast('Simulación calculada y agregada al historial.', 'success');
+  });
+
+  btnReiniciar.addEventListener('click', ()=>{
+    inpInscritos.value = DEFAULTS.inscritos;
+    inpPrecio.value = DEFAULTS.precio;
+    inpDomiciliados.value = DEFAULTS.domiciliados;
+    inpNoDomiciliados.value = DEFAULTS.noDomiciliados;
+    inpComision.value = DEFAULTS.comision;
+    inpMeta.value = DEFAULTS.meta;
+    validateInputs();
+    showToast('Parámetros reiniciados a valores predeterminados.', 'info');
+  });
+
+  // Inicialización: validar y calcular automáticamente con los valores por defecto
+  validateInputs();
+  if (isValid){
+    btnCalcular.click();
+  }
+
+  /* =====================================================================
+     ================  MÓDULO DE GASTOS / EGRESOS  ========================
+     Replica la misma robustez que el módulo de Ingresos: KPIs animados,
+     gráficos (dona, barras, gauge, comparativo), tabla histórica propia
+     y exportación PDF/Excel independiente. Comparte utilidades de
+     formato (fmtMXN, fmtNum, fmtPct, clamp, showToast) y el último
+     resultado de Ingresos (lastResult) para calcular la Utilidad Neta.
+     ===================================================================== */
+
+  // --- Referencias DOM ---
+  const gInpCategoria   = document.getElementById('gInpCategoria');
+  const gInpMonto       = document.getElementById('gInpMonto');
+  const gInpTipo        = document.getElementById('gInpTipo');
+  const gInpProveedor   = document.getElementById('gInpProveedor');
+  const gInpPresupuesto = document.getElementById('gInpPresupuesto');
+  const gInpIngresoRef  = document.getElementById('gInpIngresoRef');
+
+  const gValidationAlert = document.getElementById('gValidationAlert');
+  const gValidationText  = document.getElementById('gValidationText');
+
+  const gBtnAgregar   = document.getElementById('gBtnAgregar');
+  const gBtnReiniciar = document.getElementById('gBtnReiniciar');
+  const gBtnPdf       = document.getElementById('gBtnPdf');
+  const gBtnExcel     = document.getElementById('gBtnExcel');
+
+  const gKpiGrid = document.getElementById('gKpiGrid');
+
+  // --- Estado del módulo de gastos ---
+  let gHistory = [];   // historial de gastos individuales capturados
+  let gCharts = { dona:null, fijoVariable:null, gauge:null, categorias:null };
+
+  const CATEGORIA_LABELS = {
+    Renta:'Renta del local', Nomina:'Nómina y prestaciones', Equipo:'Mantenimiento de equipo',
+    Marketing:'Marketing y publicidad', Servicios:'Servicios (luz, agua, internet)',
+    Seguros:'Seguros', Software:'Software (EVO / MercadoPago)', Otros:'Otros gastos operativos'
+  };
+  const CATEGORIA_COLORS = {
+    Renta:'#9B6BF2', Nomina:'#2E9BF5', Equipo:'#16C2B1', Marketing:'#F2528C',
+    Servicios:'#F2A93B', Seguros:'#2ECC71', Software:'#6B6B72', Otros:'#F25555'
+  };
+
+  const G_DEFAULTS = {
+    categoria:'Renta', monto:70000, tipo:'Fijo',
+    proveedor:'Soriana Hiper Vado del Río', presupuesto:350000
+  };
+
+  // Semilla inicial de gastos típicos de operación de un gimnasio de bajo
+  // costo, para que el dashboard no arranque vacío.
+  const G_SEED = [
+    { categoria:'Renta',     monto:70000,  tipo:'Fijo',     proveedor:'Soriana Hiper Vado del Río' },
+    { categoria:'Nomina',    monto:145000, tipo:'Fijo',     proveedor:'Plantilla operativa CRACKS GYM' },
+    { categoria:'Equipo',    monto:18000,  tipo:'Variable', proveedor:'Mantenimiento BH Fitness / Matrix' },
+    { categoria:'Marketing', monto:25000,  tipo:'Variable', proveedor:'Campaña de preventa' },
+    { categoria:'Servicios', monto:22000,  tipo:'Fijo',     proveedor:'CFE / OOMAPAS / Telmex' },
+    { categoria:'Seguros',   monto:6500,   tipo:'Fijo',     proveedor:'Póliza local e instalaciones' },
+    { categoria:'Software',  monto:8500,   tipo:'Fijo',     proveedor:'EVO + MercadoPago' },
+  ];
+
+  // --- Sincronizar ingreso neto de referencia desde el módulo de Ingresos ---
+  function syncIngresoRef(){
+    if (lastResult){
+      gInpIngresoRef.value = Math.round(lastResult.ingresoNeto);
+    }
+  }
+
+  // --- Validación de presupuesto ---
+  function gValidate(){
+    const presupuesto = parseFloat(gInpPresupuesto.value) || 0;
+    const totalActual = gHistory.reduce((sum, g)=> sum + g.monto, 0);
+    const sobrepresupuesto = presupuesto > 0 && totalActual > presupuesto;
+
+    if (sobrepresupuesto){
+      gValidationAlert.classList.add('show');
+      gValidationText.textContent = `El total acumulado de gastos (${fmtMXN(totalActual)}) supera el presupuesto mensual de ${fmtMXN(presupuesto)} por ${fmtMXN(totalActual - presupuesto)}.`;
+    } else {
+      gValidationAlert.classList.remove('show');
+    }
+    return !sobrepresupuesto;
+  }
+  gInpPresupuesto.addEventListener('input', gValidate);
+
+  // --- KPI defs para gastos ---
+  const G_KPI_DEFS = [
+    { key:'totalGastos',    label:'Total de gastos',       accent:'var(--accent-red)',    isMoney:true,  icon:'trending-down' },
+    { key:'gastosFijos',    label:'Gastos fijos',          accent:'var(--accent-purple)', isMoney:true,  icon:'lock' },
+    { key:'gastosVariables',label:'Gastos variables',      accent:'var(--accent-amber)',  isMoney:true,  icon:'activity' },
+    { key:'numMovimientos', label:'Movimientos',           accent:'var(--accent-blue)',   isMoney:false, icon:'list' },
+    { key:'gastoPromedio',  label:'Gasto promedio',        accent:'var(--accent-teal)',   isMoney:true,  icon:'bar-chart' },
+    { key:'categoriaTop',   label:'Categoría con más gasto', accent:'var(--accent-pink)', isMoney:false, icon:'flag', isText:true },
+    { key:'pctPresupuesto', label:'% de presupuesto usado', accent:'var(--accent-amber)', isMoney:false, icon:'percent', isPct:true },
+    { key:'utilidadNeta',   label:'Utilidad neta',         accent:'var(--accent-green)',  isMoney:true,  icon:'check-circle' },
+  ];
+
+  const G_ICONS = {
+    'trending-down':'<polyline points="23 18 13.5 8.5 8.5 13.5 1 6"></polyline><polyline points="17 18 23 18 23 12"></polyline>',
+    'lock':'<rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0110 0v4"></path>',
+    'activity':'<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>',
+    'list':'<line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line>',
+    'bar-chart':'<line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="16"></line>',
+    'flag':'<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path><line x1="4" y1="22" x2="4" y2="15"></line>',
+    'percent':ICONS.percent,
+    'check-circle':ICONS['check-circle'],
+  };
+
+  function gBuildKpiSkeleton(){
+    gKpiGrid.innerHTML = G_KPI_DEFS.map((def, i)=> `
+      <div class="kpi-card fade-in fade-in-d${(i % 4)+1}" style="--kpi-accent:${def.accent}">
+        <div class="kpi-top">
+          <div class="kpi-icon">${'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+G_ICONS[def.icon]+'</svg>'}</div>
+          <div class="kpi-trend flat" id="g-trend-${def.key}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            <span>0%</span>
+          </div>
+        </div>
+        <div class="kpi-label">${def.label}</div>
+        <div class="kpi-value" id="g-kpi-${def.key}">${def.isText ? '—' : '0'}</div>
+        <div class="kpi-sub" id="g-kpi-sub-${def.key}">Sin datos aún</div>
+      </div>
+    `).join('');
+  }
+  gBuildKpiSkeleton();
+
+  // --- Motor de cálculo de gastos (agregados sobre todo el historial) ---
+  function gCalcularAgregados(){
+    const totalGastos = gHistory.reduce((s,g)=> s + g.monto, 0);
+    const gastosFijos = gHistory.filter(g=>g.tipo==='Fijo').reduce((s,g)=> s + g.monto, 0);
+    const gastosVariables = gHistory.filter(g=>g.tipo==='Variable').reduce((s,g)=> s + g.monto, 0);
+    const numMovimientos = gHistory.length;
+    const gastoPromedio = numMovimientos > 0 ? totalGastos / numMovimientos : 0;
+
+    const porCategoria = {};
+    gHistory.forEach(g=>{ porCategoria[g.categoria] = (porCategoria[g.categoria]||0) + g.monto; });
+    let categoriaTopKey = null, categoriaTopMonto = -1;
+    Object.keys(porCategoria).forEach(k=>{
+      if (porCategoria[k] > categoriaTopMonto){ categoriaTopMonto = porCategoria[k]; categoriaTopKey = k; }
+    });
+    const categoriaTop = categoriaTopKey ? CATEGORIA_LABELS[categoriaTopKey] : 'Sin datos';
+
+    const presupuesto = parseFloat(gInpPresupuesto.value) || 0;
+    const pctPresupuesto = presupuesto > 0 ? (totalGastos/presupuesto)*100 : 0;
+
+    const ingresoNeto = lastResult ? lastResult.ingresoNeto : (parseFloat(gInpIngresoRef.value) || 0);
+    const utilidadNeta = ingresoNeto - totalGastos;
+
+    return { totalGastos, gastosFijos, gastosVariables, numMovimientos, gastoPromedio,
+      categoriaTop, porCategoria, pctPresupuesto, presupuesto, ingresoNeto, utilidadNeta };
+  }
+
+  function gAnimateCounter(el, endValue, isMoney, duration=900){
+    const startTime = performance.now();
+    function tick(now){
+      const progress = clamp((now-startTime)/duration, 0, 1);
+      const eased = 1 - Math.pow(1-progress, 3);
+      const current = endValue * eased;
+      el.textContent = isMoney ? fmtMXN(current) : fmtNum(current);
+      if (progress < 1){ requestAnimationFrame(tick); }
+      else { el.textContent = isMoney ? fmtMXN(endValue) : fmtNum(endValue); }
+    }
+    requestAnimationFrame(tick);
+  }
+
+  function gRenderKpis(agg){
+    G_KPI_DEFS.forEach(def=>{
+      const el = document.getElementById('g-kpi-'+def.key);
+      const subEl = document.getElementById('g-kpi-sub-'+def.key);
+      if (!el) return;
+
+      if (def.isText){
+        el.textContent = agg.categoriaTop;
+      } else if (def.isPct){
+        gAnimateCounter(el, agg.pctPresupuesto, false);
+        el.textContent = fmtPct(agg.pctPresupuesto);
+        requestAnimationFrame(()=>{ el.textContent = fmtPct(agg.pctPresupuesto); });
+      } else {
+        gAnimateCounter(el, agg[def.key], def.isMoney);
+      }
+
+      if (def.key==='totalGastos') subEl.textContent = `${agg.numMovimientos} movimiento${agg.numMovimientos!==1?'s':''} registrados`;
+      else if (def.key==='gastosFijos') subEl.textContent = agg.totalGastos>0 ? `${fmtPct((agg.gastosFijos/agg.totalGastos)*100)} del total` : 'Sin datos aún';
+      else if (def.key==='gastosVariables') subEl.textContent = agg.totalGastos>0 ? `${fmtPct((agg.gastosVariables/agg.totalGastos)*100)} del total` : 'Sin datos aún';
+      else if (def.key==='numMovimientos') subEl.textContent = 'Registros en el historial';
+      else if (def.key==='gastoPromedio') subEl.textContent = 'Por movimiento capturado';
+      else if (def.key==='categoriaTop') subEl.textContent = agg.porCategoria[Object.keys(agg.porCategoria)[0]] ? fmtMXN(Math.max(0,...Object.values(agg.porCategoria))) : 'Sin datos aún';
+      else if (def.key==='pctPresupuesto') subEl.textContent = `Presupuesto: ${fmtMXN(agg.presupuesto)}`;
+      else if (def.key==='utilidadNeta') subEl.textContent = lastResult ? `Sobre ingreso neto de ${fmtMXN(agg.ingresoNeto)}` : 'Calcula Ingresos primero';
+
+      // color condicional para utilidad neta (verde si positiva, rojo si negativa)
+      if (def.key === 'utilidadNeta'){
+        el.style.color = agg.utilidadNeta >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
+      }
+    });
+  }
+
+  // --- Charts de gastos ---
+  function gDestroyChart(key){ if (gCharts[key]){ gCharts[key].destroy(); gCharts[key]=null; } }
+
+  function gRenderDona(agg){
+    if (typeof Chart === 'undefined') return;
+    gDestroyChart('dona');
+    const labels = Object.keys(agg.porCategoria);
+    if (labels.length === 0) return;
+    const ctx = document.getElementById('gChartDona').getContext('2d');
+    gCharts.dona = new Chart(ctx, {
+      type:'doughnut',
+      data:{
+        labels: labels.map(k=>CATEGORIA_LABELS[k]),
+        datasets:[{
+          data: labels.map(k=>agg.porCategoria[k]),
+          backgroundColor: labels.map(k=>CATEGORIA_COLORS[k]),
+          borderColor:'#2A2A2A', borderWidth:3, hoverOffset:10,
+        }]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false, cutout:'68%',
+        plugins:{
+          legend:{ display:false },
+          tooltip:{
+            backgroundColor:'#101012', borderColor:'#3a3a40', borderWidth:1, padding:10,
+            callbacks:{ label:(ctx)=> `${ctx.label}: ${fmtMXN(ctx.parsed)} (${fmtPct((ctx.parsed/agg.totalGastos)*100)})` }
+          }
+        },
+        animation:{ animateScale:true, animateRotate:true, duration:900, easing:'easeOutCubic' }
+      }
+    });
+
+    document.getElementById('gLegendDona').innerHTML = labels.map(k=>
+      `<div class="legend-item"><span class="legend-swatch" style="background:${CATEGORIA_COLORS[k]}"></span>${CATEGORIA_LABELS[k]} <b>${fmtMXN(agg.porCategoria[k])}</b></div>`
+    ).join('');
+  }
+
+  function gRenderFijoVariable(agg){
+    if (typeof Chart === 'undefined') return;
+    gDestroyChart('fijoVariable');
+    const ctx = document.getElementById('gChartFijoVariable').getContext('2d');
+    gCharts.fijoVariable = new Chart(ctx, {
+      type:'bar',
+      data:{
+        labels:['Gastos fijos','Gastos variables'],
+        datasets:[{
+          data:[agg.gastosFijos, agg.gastosVariables],
+          backgroundColor:['#9B6BF2','#F2A93B'],
+          borderRadius:8, maxBarThickness:64,
+        }]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{
+          legend:{ display:false },
+          tooltip:{ backgroundColor:'#101012', borderColor:'#3a3a40', borderWidth:1, padding:10, callbacks:{ label:(ctx)=> fmtMXN(ctx.parsed.y) } }
+        },
+        scales:{
+          x:{ grid:{ display:false }, ticks:{ font:{weight:'600'} } },
+          y:{ grid:{ color:'#333335' }, ticks:{ callback:(v)=> '$'+(v/1000).toFixed(0)+'k' } }
+        },
+        animation:{ duration:900, easing:'easeOutCubic' }
+      }
+    });
+
+    document.getElementById('gLegendFijoVariable').innerHTML = `
+      <div class="legend-item"><span class="legend-swatch" style="background:#9B6BF2"></span>Fijos <b>${fmtMXN(agg.gastosFijos)}</b></div>
+      <div class="legend-item"><span class="legend-swatch" style="background:#F2A93B"></span>Variables <b>${fmtMXN(agg.gastosVariables)}</b></div>
+    `;
+  }
+
+  function gRenderGauge(agg){
+    if (typeof Chart === 'undefined') return;
+    gDestroyChart('gauge');
+    const pct = clamp(agg.pctPresupuesto, 0, 100);
+    const ctx = document.getElementById('gChartGauge').getContext('2d');
+
+    let color = 'var(--accent-green)'.includes('var') ? '#2ECC71' : '#2ECC71';
+    if (pct >= 100) color = '#F25555';
+    else if (pct >= 75) color = '#F2A93B';
+
+    gCharts.gauge = new Chart(ctx, {
+      type:'doughnut',
+      data:{ datasets:[{ data:[pct, Math.max(0,100-pct)], backgroundColor:[color,'#1f1f21'], borderWidth:0, circumference:270, rotation:225 }] },
+      options:{
+        responsive:true, maintainAspectRatio:false, cutout:'78%',
+        plugins:{ legend:{display:false}, tooltip:{enabled:false} },
+        animation:{ duration:1000, easing:'easeOutCubic' }
+      }
+    });
+
+    document.getElementById('gGaugeNum').textContent = fmtPct(pct,1);
+    document.getElementById('gGaugeNum').style.color = color;
+    document.getElementById('gGaugeSub').textContent = `${fmtMXN(agg.totalGastos)} / ${fmtMXN(agg.presupuesto)}`;
+  }
+
+  function gRenderCategorias(agg){
+    if (typeof Chart === 'undefined') return;
+    gDestroyChart('categorias');
+    const labels = Object.keys(agg.porCategoria);
+    if (labels.length === 0) return;
+    const ctx = document.getElementById('gChartCategorias').getContext('2d');
+    gCharts.categorias = new Chart(ctx, {
+      type:'bar',
+      data:{
+        labels: labels.map(k=>CATEGORIA_LABELS[k]),
+        datasets:[{
+          data: labels.map(k=>agg.porCategoria[k]),
+          backgroundColor: labels.map(k=>CATEGORIA_COLORS[k]),
+          borderRadius:8, maxBarThickness:30,
+        }]
+      },
+      options:{
+        indexAxis:'y', responsive:true, maintainAspectRatio:false,
+        plugins:{
+          legend:{ display:false },
+          tooltip:{ backgroundColor:'#101012', borderColor:'#3a3a40', borderWidth:1, padding:10, callbacks:{ label:(ctx)=> fmtMXN(ctx.parsed.x) } }
+        },
+        scales:{
+          x:{ grid:{ color:'#333335' }, ticks:{ callback:(v)=> '$'+fmtNum(v) } },
+          y:{ grid:{ display:false }, ticks:{ font:{weight:'700', size:12} } }
+        },
+        animation:{ duration:900, easing:'easeOutCubic' }
+      }
+    });
+  }
+
+  function gRenderMiniStats(agg){
+    document.getElementById('gTotalEgresosVal').textContent = fmtMXN(agg.totalGastos);
+    document.getElementById('gTotalEgresosFoot').textContent = `${agg.numMovimientos} movimiento${agg.numMovimientos!==1?'s':''} registrados`;
+    const pctBudget = agg.presupuesto>0 ? clamp((agg.totalGastos/agg.presupuesto)*100,0,100) : 0;
+    requestAnimationFrame(()=>{ document.getElementById('gTotalEgresosBar').style.width = pctBudget+'%'; });
+
+    document.getElementById('gUtilidadVal').textContent = fmtMXN(agg.utilidadNeta);
+    document.getElementById('gUtilidadVal').style.color = agg.utilidadNeta>=0 ? 'var(--accent-green)' : 'var(--accent-red)';
+    document.getElementById('gUtilidadFoot').textContent = lastResult ? `Ingreso neto ${fmtMXN(agg.ingresoNeto)} − Gastos ${fmtMXN(agg.totalGastos)}` : 'Calcula Ingresos primero para ver la utilidad real';
+    const pctUtilidad = agg.ingresoNeto>0 ? clamp((agg.utilidadNeta/agg.ingresoNeto)*100,0,100) : 0;
+    requestAnimationFrame(()=>{
+      const bar = document.getElementById('gUtilidadBar');
+      bar.style.width = Math.max(0,pctUtilidad)+'%';
+      bar.style.background = agg.utilidadNeta>=0
+        ? 'linear-gradient(90deg, var(--accent-green), var(--accent-teal))'
+        : 'linear-gradient(90deg, var(--accent-red), var(--accent-pink))';
+    });
+  }
+
+  // --- Tabla histórica de gastos ---
+  const gHistoryBody = document.getElementById('gHistoryBody');
+  const gHistoryEmpty = document.getElementById('gHistoryEmpty');
+  const gHistoryCount = document.getElementById('gHistoryCount');
+  const gHistoryTable = document.getElementById('gHistoryTable');
+
+  function gRenderHistoryTable(){
+    if (gHistory.length === 0){
+      gHistoryTable.style.display = 'none';
+      gHistoryEmpty.style.display = 'flex';
+      gHistoryCount.textContent = '0 registros';
+      return;
+    }
+    gHistoryTable.style.display = 'table';
+    gHistoryEmpty.style.display = 'none';
+    gHistoryCount.textContent = `${gHistory.length} registro${gHistory.length>1?'s':''}`;
+
+    const presupuesto = parseFloat(gInpPresupuesto.value) || 0;
+
+    gHistoryBody.innerHTML = gHistory.map((g, idx)=>{
+      const num = gHistory.length - idx;
+      const fechaStr = g.timestamp.toLocaleString('es-MX', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+      const pctDelPresupuesto = presupuesto>0 ? (g.monto/presupuesto)*100 : 0;
+      return `
+        <tr class="fade-in">
+          <td class="col-strong">${num}</td>
+          <td>${fechaStr}</td>
+          <td>${CATEGORIA_LABELS[g.categoria]}</td>
+          <td>${g.tipo}</td>
+          <td>${g.proveedor || '—'}</td>
+          <td class="col-neg">${fmtMXN(g.monto)}</td>
+          <td>${fmtPct(pctDelPresupuesto)}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  // --- Refrescar todo el módulo de gastos tras un cambio ---
+  function gRefreshAll(){
+    syncIngresoRef();
+    const agg = gCalcularAgregados();
+    gRenderKpis(agg);
+    gRenderDona(agg);
+    gRenderFijoVariable(agg);
+    gRenderGauge(agg);
+    gRenderCategorias(agg);
+    gRenderMiniStats(agg);
+    gRenderHistoryTable();
+    gValidate();
+  }
+
+  // --- Agregar gasto al historial ---
+  function gAgregarGasto(seedData){
+    const categoria   = seedData ? seedData.categoria : gInpCategoria.value;
+    const monto       = seedData ? seedData.monto : (parseFloat(gInpMonto.value) || 0);
+    const tipo        = seedData ? seedData.tipo : gInpTipo.value;
+    const proveedor   = seedData ? seedData.proveedor : (gInpProveedor.value || '');
+
+    if (monto <= 0){
+      showToast('Captura un monto mayor a cero para agregar el gasto.', 'error');
+      return false;
+    }
+
+    gHistory.unshift({ categoria, monto, tipo, proveedor, timestamp:new Date() });
+    return true;
+  }
+
+  gBtnAgregar.addEventListener('click', ()=>{
+    if (gAgregarGasto()){
+      gRefreshAll();
+      showToast('Gasto agregado al historial de egresos.', 'success');
+    }
+  });
+
+  gBtnReiniciar.addEventListener('click', ()=>{
+    gInpCategoria.value = G_DEFAULTS.categoria;
+    gInpMonto.value = G_DEFAULTS.monto;
+    gInpTipo.value = G_DEFAULTS.tipo;
+    gInpProveedor.value = G_DEFAULTS.proveedor;
+    gInpPresupuesto.value = G_DEFAULTS.presupuesto;
+    gHistory = [];
+    gRefreshAll();
+    showToast('Parámetros y registros de gastos reiniciados.', 'info');
+  });
+
+  // --- Exportación PDF (solo el módulo de gastos, capturando desde el divisor) ---
+  gBtnPdf.addEventListener('click', ()=>{
+    if (typeof html2pdf === 'undefined'){
+      showToast('No se pudo cargar html2pdf.js. Verifica tu conexión a internet.', 'error');
+      return;
+    }
+    if (gHistory.length === 0){
+      showToast('Agrega al menos un gasto antes de exportar a PDF.', 'error');
+      return;
+    }
+    const root = document.getElementById('dashboardRoot');
+    root.classList.add('exporting');
+    showToast('Generando PDF de gastos, un momento…', 'info');
+
+    const opt = {
+      margin:       [6,6,6,6],
+      filename:     `CRACKSGYM_Gastos_${new Date().toISOString().slice(0,10)}.pdf`,
+      image:        { type:'jpeg', quality:0.97 },
+      html2canvas:  { scale:2, backgroundColor:'#1E1E1E', useCORS:true },
+      jsPDF:        { unit:'mm', format:'a3', orientation:'portrait' }
+    };
+
+    html2pdf().set(opt).from(root).save().then(()=>{
+      root.classList.remove('exporting');
+      showToast('PDF de gastos exportado correctamente.', 'success');
+    }).catch(()=>{
+      root.classList.remove('exporting');
+      showToast('Ocurrió un error al exportar el PDF.', 'error');
+    });
+  });
+
+  // --- Exportación Excel ---
+  gBtnExcel.addEventListener('click', ()=>{
+    if (typeof XLSX === 'undefined'){
+      showToast('No se pudo cargar SheetJS. Verifica tu conexión a internet.', 'error');
+      return;
+    }
+    if (gHistory.length === 0){
+      showToast('No hay historial de gastos para exportar.', 'error');
+      return;
+    }
+
+    const presupuesto = parseFloat(gInpPresupuesto.value) || 0;
+    const rows = gHistory.slice().reverse().map((g, idx)=>({
+      '#': idx+1,
+      'Fecha de registro': g.timestamp.toLocaleString('es-MX'),
+      'Categoría': CATEGORIA_LABELS[g.categoria],
+      'Tipo': g.tipo,
+      'Proveedor / referencia': g.proveedor || '',
+      'Monto (MXN)': Math.round(g.monto),
+      '% del presupuesto': presupuesto>0 ? Number(((g.monto/presupuesto)*100).toFixed(2)) : 0,
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!cols'] = Object.keys(rows[0]).map(k => ({ wch: Math.max(16, k.length+2) }));
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Historial Gastos');
+    XLSX.writeFile(wb, `CRACKSGYM_Gastos_${new Date().toISOString().slice(0,10)}.xlsx`);
+
+    showToast('Excel de gastos exportado correctamente.', 'success');
+  });
+
+  // --- Inicialización del módulo de gastos con datos semilla ---
+  G_SEED.forEach(seed=> gAgregarGasto(seed));
+  gRefreshAll();
+
+  /* =====================================================================
+     ===========  SIMULADOR FINANCIERO AVANZADO (TAB EGRESOS)  ============
+     Estructura de costos fijos/variables editable campo por campo, ISR,
+     KPIs de rentabilidad, escenarios por precio, sensibilidad y semáforo.
+     Todo se recalcula en vivo, sin botón, en cada input. Comparte
+     fmtMXN/fmtNum/fmtPct/clamp/showToast/ICONS y el lastResult del
+     módulo de Ingresos (inscritos, precio, ingreso bruto/neto).
+     ===================================================================== */
+
+  // --- Definición de campos de la estructura de costos ---
+  const FIJOS_DEFS = [
+    { key:'renta',        label:'Renta',         value:70000 },
+    { key:'nomina',       label:'Nómina',        value:145000 },
+    { key:'luz',          label:'Luz',           value:14000 },
+    { key:'agua',         label:'Agua',          value:4000 },
+    { key:'internet',     label:'Internet',      value:1800 },
+    { key:'marketing',    label:'Marketing',     value:25000 },
+    { key:'software',     label:'Software',      value:8500 },
+    { key:'mantenimiento',label:'Mantenimiento', value:18000 },
+    { key:'contador',     label:'Contador',      value:7000 },
+    { key:'limpieza',     label:'Limpieza',      value:9000 },
+    { key:'seguros',      label:'Seguros',       value:6500 },
+    { key:'otrosFijos',   label:'Otros',         value:5000 },
+  ];
+  const VARIABLES_DEFS = [
+    { key:'comisionAdicional', label:'Comisión bancaria adicional', value:3000 },
+    { key:'papeleria',         label:'Papelería',                   value:1500 },
+    { key:'insumos',           label:'Insumos',                     value:6000 },
+    { key:'reparaciones',      label:'Reparaciones',                value:4000 },
+    { key:'imprevistos',       label:'Imprevistos',                 value:5000 },
+    { key:'otrosVariables',    label:'Otros',                       value:3000 },
+  ];
+
+  // --- Construir los campos de captura (fijos y variables) ---
+  function buildEgresosFields(){
+    const fijosWrap = document.getElementById('fijosFields');
+    const variablesWrap = document.getElementById('variablesFields');
+    if (!fijosWrap || !variablesWrap) return;
+
+    fijosWrap.innerHTML = FIJOS_DEFS.map(def => `
+      <div class="egresos-field">
+        <label for="fijo-${def.key}">${def.label}</label>
+        <input type="number" id="fijo-${def.key}" min="0" step="100" value="${def.value}" data-egreso-key="${def.key}">
+      </div>
+    `).join('');
+
+    variablesWrap.innerHTML = VARIABLES_DEFS.map(def => `
+      <div class="egresos-field">
+        <label for="var-${def.key}">${def.label}</label>
+        <input type="number" id="var-${def.key}" min="0" step="100" value="${def.value}" data-egreso-key="${def.key}">
+      </div>
+    `).join('');
+  }
+  buildEgresosFields();
+
+  const inpISR = document.getElementById('inpISR');
+  const inpInversionInicial = document.getElementById('inpInversionInicial');
+
+  // --- Leer todos los valores actuales de la estructura de costos ---
+  function leerEgresos(){
+    const fijos = {};
+    let totalFijos = 0;
+    FIJOS_DEFS.forEach(def=>{
+      const el = document.getElementById('fijo-'+def.key);
+      const v = el ? (parseFloat(el.value) || 0) : 0;
+      fijos[def.key] = v;
+      totalFijos += v;
+    });
+
+    const variables = {};
+    let totalVariables = 0;
+    VARIABLES_DEFS.forEach(def=>{
+      const el = document.getElementById('var-'+def.key);
+      const v = el ? (parseFloat(el.value) || 0) : 0;
+      variables[def.key] = v;
+      totalVariables += v;
+    });
+
+    return { fijos, variables, totalFijos, totalVariables, totalEgresos: totalFijos + totalVariables };
+  }
+
+  /* --- Motor de cálculo principal del simulador (para un precio dado) ---
+     Replica exactamente las fórmulas solicitadas:
+       Ingreso Bruto = Inscritos × Precio
+       Total Egresos = suma de todos los gastos
+       Utilidad Operativa = Ingreso Bruto − Total Egresos
+       ISR = Utilidad Operativa × % (solo si la utilidad es positiva)
+       Utilidad Neta = Utilidad Operativa − ISR
+       Margen Neto = (Utilidad Neta / Ingreso Bruto) × 100
+       Utilidad por Cliente = Utilidad Neta / Inscritos
+       Flujo Neto = Ingreso Bruto − Total Egresos − ISR
+       Punto de Equilibrio = Total Egresos / Precio
+  */
+  function simCalcular(inscritos, precio, totalEgresos, isrPct){
+    const ingresoBruto = inscritos * precio;
+    const utilidadOperativa = ingresoBruto - totalEgresos;
+    const isr = utilidadOperativa > 0 ? utilidadOperativa * (isrPct/100) : 0;
+    const utilidadNeta = utilidadOperativa - isr;
+    const margenNeto = ingresoBruto > 0 ? (utilidadNeta/ingresoBruto)*100 : 0;
+    const utilidadPorCliente = inscritos > 0 ? utilidadNeta/inscritos : 0;
+    const flujoNeto = ingresoBruto - totalEgresos - isr;
+    const puntoEquilibrio = precio > 0 ? totalEgresos/precio : 0;
+    const clientesFaltantes = Math.max(0, Math.ceil(puntoEquilibrio - inscritos));
+
+    return { ingresoBruto, utilidadOperativa, isr, utilidadNeta, margenNeto,
+      utilidadPorCliente, flujoNeto, puntoEquilibrio, clientesFaltantes, totalEgresos, precio, inscritos };
+  }
+
+  // --- KPIs de rentabilidad (12 tarjetas) ---
+  const SIM_KPI_DEFS = [
+    { key:'ingresoBruto',       label:'Ingreso Bruto',        accent:'var(--accent-purple)', isMoney:true },
+    { key:'ingresoNetoRef',     label:'Ingreso Neto',         accent:'var(--accent-blue)',   isMoney:true },
+    { key:'totalEgresos',       label:'Total Egresos',        accent:'var(--accent-red)',    isMoney:true },
+    { key:'utilidadOperativa',  label:'Utilidad Operativa',   accent:'var(--accent-teal)',   isMoney:true },
+    { key:'isr',                label:'ISR',                  accent:'var(--accent-amber)',  isMoney:true },
+    { key:'utilidadNeta',       label:'Utilidad Neta',        accent:'var(--accent-green)',  isMoney:true },
+    { key:'margenNeto',         label:'Margen Neto %',        accent:'var(--accent-pink)',   isMoney:false, isPct:true },
+    { key:'utilidadPorCliente', label:'Utilidad por Cliente', accent:'var(--accent-blue)',   isMoney:true },
+    { key:'flujoNeto',          label:'Flujo Neto',           accent:'var(--accent-green)',  isMoney:true },
+    { key:'puntoEquilibrio',    label:'Punto de Equilibrio',  accent:'var(--accent-amber)',  isMoney:false, suffix:' clientes' },
+    { key:'clientesFaltantes',  label:'Clientes Faltantes',   accent:'var(--accent-red)',    isMoney:false },
+    { key:'cumplimientoMetaSim',label:'Cumplimiento de Meta', accent:'var(--accent-purple)', isMoney:false, isPct:true },
+  ];
+
+  function simBuildKpiSkeleton(){
+    const grid = document.getElementById('simKpiGrid');
+    if (!grid) return;
+    grid.innerHTML = SIM_KPI_DEFS.map((def,i)=> `
+      <div class="kpi-card fade-in fade-in-d${(i%4)+1}" style="--kpi-accent:${def.accent}">
+        <div class="kpi-top">
+          <div class="kpi-icon">${'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+ICONS['trending-up']+'</svg>'}</div>
+        </div>
+        <div class="kpi-label">${def.label}</div>
+        <div class="kpi-value" id="sim-kpi-${def.key}">0</div>
+        <div class="kpi-sub" id="sim-kpi-sub-${def.key}">Sin datos aún</div>
+      </div>
+    `).join('');
+  }
+  simBuildKpiSkeleton();
+
+  function simAnimateCounter(el, endValue, mode, duration=900){
+    const startTime = performance.now();
+    function tick(now){
+      const progress = clamp((now-startTime)/duration,0,1);
+      const eased = 1 - Math.pow(1-progress,3);
+      const current = endValue*eased;
+      el.textContent = mode==='money' ? fmtMXN(current) : (mode==='pct' ? fmtPct(current) : fmtNum(current));
+      if (progress<1){ requestAnimationFrame(tick); } else { el.textContent = mode==='money' ? fmtMXN(endValue) : (mode==='pct' ? fmtPct(endValue) : fmtNum(endValue)); }
+    }
+    requestAnimationFrame(tick);
+  }
+
+  function simRenderKpis(res, egresos){
+    const inscritos = lastResult ? lastResult.inscritos : 0;
+    const meta = lastResult ? lastResult.meta : 0;
+    const cumplimientoMetaSim = meta>0 ? (inscritos/meta)*100 : 0;
+    const ingresoNetoRef = lastResult ? lastResult.ingresoNeto : 0;
+
+    const values = {
+      ingresoBruto: res.ingresoBruto,
+      ingresoNetoRef,
+      totalEgresos: res.totalEgresos,
+      utilidadOperativa: res.utilidadOperativa,
+      isr: res.isr,
+      utilidadNeta: res.utilidadNeta,
+      margenNeto: res.margenNeto,
+      utilidadPorCliente: res.utilidadPorCliente,
+      flujoNeto: res.flujoNeto,
+      puntoEquilibrio: res.puntoEquilibrio,
+      clientesFaltantes: res.clientesFaltantes,
+      cumplimientoMetaSim,
+    };
+
+    SIM_KPI_DEFS.forEach(def=>{
+      const el = document.getElementById('sim-kpi-'+def.key);
+      const subEl = document.getElementById('sim-kpi-sub-'+def.key);
+      if (!el) return;
+      const mode = def.isPct ? 'pct' : (def.isMoney ? 'money' : 'num');
+      simAnimateCounter(el, values[def.key], mode);
+      if (def.suffix && !def.isMoney && !def.isPct){
+        requestAnimationFrame(()=>{ /* el sufijo se añade tras la animación */ });
+      }
+
+      // colores condicionales para utilidad / ISR / flujo
+      if (def.key==='utilidadOperativa' || def.key==='utilidadNeta' || def.key==='flujoNeto'){
+        el.style.color = values[def.key] >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
+      }
+
+      if (def.key==='ingresoBruto') subEl.textContent = `${fmtNum(inscritos)} inscritos × ${fmtMXN(lastResult?lastResult.precio:0)}`;
+      else if (def.key==='ingresoNetoRef') subEl.textContent = 'Tomado del módulo de Ingresos';
+      else if (def.key==='totalEgresos') subEl.textContent = `Fijos ${fmtMXN(egresos.totalFijos)} + Variables ${fmtMXN(egresos.totalVariables)}`;
+      else if (def.key==='utilidadOperativa') subEl.textContent = 'Ingreso bruto − Total egresos';
+      else if (def.key==='isr') subEl.textContent = `${inpISR.value}% sobre utilidad operativa`;
+      else if (def.key==='utilidadNeta') subEl.textContent = 'Utilidad operativa − ISR';
+      else if (def.key==='margenNeto') subEl.textContent = res.margenNeto>=20 ? 'Margen saludable' : (res.margenNeto>=0?'Margen ajustado':'Margen negativo');
+      else if (def.key==='utilidadPorCliente') subEl.textContent = 'Utilidad neta ÷ inscritos';
+      else if (def.key==='flujoNeto') subEl.textContent = 'Ingreso bruto − egresos − ISR';
+      else if (def.key==='puntoEquilibrio') subEl.textContent = `Equivale a ${fmtNum(res.puntoEquilibrio)} clientes`;
+      else if (def.key==='clientesFaltantes') subEl.textContent = res.clientesFaltantes>0 ? 'Para alcanzar el punto de equilibrio' : 'Ya superaste el punto de equilibrio';
+      else if (def.key==='cumplimientoMetaSim') subEl.textContent = `Meta: ${fmtNum(meta)} socios`;
+    });
+  }
+
+  // --- Semáforo de salud financiera ---
+  function simRenderSemaforo(res){
+    const dot = document.getElementById('semaforoDot');
+    const title = document.getElementById('semaforoTitle');
+    const sub = document.getElementById('semaforoSub');
+    if (!dot) return;
+
+    dot.classList.remove('red','yellow','green');
+
+    if (res.utilidadNeta < 0){
+      dot.classList.add('red');
+      title.textContent = '🔴 Utilidad negativa';
+      title.style.color = '#ff8989';
+      sub.textContent = `La operación está perdiendo ${fmtMXN(Math.abs(res.utilidadNeta))} al mes con los parámetros actuales. Revisa precio, inscritos o egresos.`;
+    } else if (res.margenNeto < 20){
+      dot.classList.add('yellow');
+      title.textContent = '🟡 Margen por debajo del 20%';
+      title.style.color = '#ffd089';
+      sub.textContent = `Margen neto actual de ${fmtPct(res.margenNeto)}. Utilidad positiva pero ajustada; hay poco colchón ante imprevistos.`;
+    } else {
+      dot.classList.add('green');
+      title.textContent = '🟢 Margen saludable';
+      title.style.color = '#7ee2a8';
+      sub.textContent = `Margen neto de ${fmtPct(res.margenNeto)} con utilidad neta de ${fmtMXN(res.utilidadNeta)}. Operación financieramente sana.`;
+    }
+  }
+
+  // --- Charts del simulador ---
+  let simCharts = { resultado:null, dona:null, sensibilidad:null };
+  function simDestroyChart(key){ if (simCharts[key]){ simCharts[key].destroy(); simCharts[key]=null; } }
+
+  function simRenderResultado(res){
+    if (typeof Chart === 'undefined') return;
+    simDestroyChart('resultado');
+    const ctx = document.getElementById('simChartResultado');
+    if (!ctx) return;
+    simCharts.resultado = new Chart(ctx.getContext('2d'), {
+      type:'bar',
+      data:{
+        labels:['Ingresos','Egresos','Utilidad Operativa','Utilidad Neta'],
+        datasets:[{
+          data:[res.ingresoBruto, res.totalEgresos, res.utilidadOperativa, res.utilidadNeta],
+          backgroundColor:['#9B6BF2','#F25555', res.utilidadOperativa>=0?'#16C2B1':'#F25555', res.utilidadNeta>=0?'#2ECC71':'#F25555'],
+          borderRadius:8, maxBarThickness:60,
+        }]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{
+          legend:{ display:false },
+          tooltip:{ backgroundColor:'#101012', borderColor:'#3a3a40', borderWidth:1, padding:10, callbacks:{ label:(c)=> fmtMXN(c.parsed.y) } }
+        },
+        scales:{
+          x:{ grid:{ display:false }, ticks:{ font:{weight:'600'} } },
+          y:{ grid:{ color:'#333335' }, ticks:{ callback:(v)=> '$'+(v/1000).toFixed(0)+'k' } }
+        },
+        animation:{ duration:700, easing:'easeOutCubic' }
+      }
+    });
+    const legend = document.getElementById('simLegendResultado');
+    if (legend){
+      legend.innerHTML = `
+        <div class="legend-item"><span class="legend-swatch" style="background:#9B6BF2"></span>Ingresos <b>${fmtMXN(res.ingresoBruto)}</b></div>
+        <div class="legend-item"><span class="legend-swatch" style="background:#F25555"></span>Egresos <b>${fmtMXN(res.totalEgresos)}</b></div>
+        <div class="legend-item"><span class="legend-swatch" style="background:#2ECC71"></span>Utilidad Neta <b>${fmtMXN(res.utilidadNeta)}</b></div>
+      `;
+    }
+  }
+
+  function simRenderDona(egresos){
+    if (typeof Chart === 'undefined') return;
+    simDestroyChart('dona');
+    const ctx = document.getElementById('simChartDona');
+    if (!ctx) return;
+
+    const data = {
+      'Nómina': egresos.fijos.nomina,
+      'Renta': egresos.fijos.renta,
+      'Luz': egresos.fijos.luz,
+      'Marketing': egresos.fijos.marketing,
+      'Software': egresos.fijos.software,
+      'Otros': egresos.fijos.otrosFijos + egresos.fijos.agua + egresos.fijos.internet + egresos.fijos.mantenimiento + egresos.fijos.contador + egresos.fijos.limpieza + egresos.fijos.seguros + egresos.totalVariables,
+    };
+    const labels = Object.keys(data);
+    const colors = ['#2E9BF5','#9B6BF2','#F2A93B','#F2528C','#16C2B1','#6B6B72'];
+
+    simCharts.dona = new Chart(ctx.getContext('2d'), {
+      type:'doughnut',
+      data:{ labels, datasets:[{ data:Object.values(data), backgroundColor:colors, borderColor:'#2A2A2A', borderWidth:3, hoverOffset:10 }] },
+      options:{
+        responsive:true, maintainAspectRatio:false, cutout:'68%',
+        plugins:{
+          legend:{ display:false },
+          tooltip:{ backgroundColor:'#101012', borderColor:'#3a3a40', borderWidth:1, padding:10, callbacks:{ label:(c)=> `${c.label}: ${fmtMXN(c.parsed)}` } }
+        },
+        animation:{ animateScale:true, animateRotate:true, duration:900, easing:'easeOutCubic' }
+      }
+    });
+
+    const legend = document.getElementById('simLegendDona');
+    if (legend){
+      legend.innerHTML = labels.map((l,i)=> `<div class="legend-item"><span class="legend-swatch" style="background:${colors[i]}"></span>${l} <b>${fmtMXN(data[l])}</b></div>`).join('');
+    }
+  }
+
+  const PRECIOS_ESCENARIO = [350,400,450,500,550,600,650,700,750];
+
+  function simRenderSensibilidad(inscritos, totalEgresos, isrPct){
+    if (typeof Chart === 'undefined') return;
+    simDestroyChart('sensibilidad');
+    const ctx = document.getElementById('simChartSensibilidad');
+    if (!ctx) return;
+
+    const utilidades = PRECIOS_ESCENARIO.map(p => simCalcular(inscritos, p, totalEgresos, isrPct).utilidadNeta);
+
+    simCharts.sensibilidad = new Chart(ctx.getContext('2d'), {
+      type:'line',
+      data:{
+        labels: PRECIOS_ESCENARIO.map(p=>'$'+p),
+        datasets:[{
+          label:'Utilidad Neta',
+          data: utilidades,
+          borderColor:'#2ECC71',
+          backgroundColor:'rgba(46,204,113,0.12)',
+          fill:true, tension:0.35,
+          pointBackgroundColor:'#2ECC71',
+          pointBorderColor:'#1c1c1c',
+          pointRadius:5, pointHoverRadius:7,
+          borderWidth:3,
+        }]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{
+          legend:{ display:false },
+          tooltip:{ backgroundColor:'#101012', borderColor:'#3a3a40', borderWidth:1, padding:10, callbacks:{ label:(c)=> 'Utilidad neta: '+fmtMXN(c.parsed.y) } }
+        },
+        scales:{
+          x:{ grid:{ color:'#2c2c2e' }, ticks:{ font:{weight:'700'} } },
+          y:{ grid:{ color:'#333335' }, ticks:{ callback:(v)=> '$'+(v/1000).toFixed(0)+'k' } }
+        },
+        animation:{ duration:900, easing:'easeOutCubic' }
+      }
+    });
+  }
+
+  // --- Tabla de escenarios por precio ---
+  function simRenderEscenarios(inscritos, totalEgresos, isrPct, precioActual){
+    const body = document.getElementById('escenariosBody');
+    if (!body) return;
+
+    body.innerHTML = PRECIOS_ESCENARIO.map(p=>{
+      const r = simCalcular(inscritos, p, totalEgresos, isrPct);
+      const isActive = p === precioActual;
+      return `
+        <tr class="fade-in${isActive ? ' scenario-active' : ''}">
+          <td class="col-strong">${fmtMXN(p)}${isActive ? '<span class="scenario-tag">ACTUAL</span>' : ''}</td>
+          <td>${fmtMXN(r.ingresoBruto)}</td>
+          <td class="col-neg">${fmtMXN(r.totalEgresos)}</td>
+          <td class="${r.utilidadNeta>=0?'col-pos':'col-neg'}">${fmtMXN(r.utilidadNeta)}</td>
+          <td>${fmtPct(r.margenNeto)}</td>
+          <td>${fmtNum(r.puntoEquilibrio)} clientes</td>
+          <td>${r.clientesFaltantes>0 ? fmtNum(r.clientesFaltantes) : '—'}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  // --- Métricas extra: MRR, ARR, ingresos por periodo, márgenes, ROI, Payback ---
+  const EXTRA_KPI_DEFS = [
+    { key:'mrr',               label:'MRR',                      accent:'var(--accent-blue)',   isMoney:true },
+    { key:'arr',                label:'ARR (Ingreso anual)',      accent:'var(--accent-purple)', isMoney:true },
+    { key:'ingresoDiario',      label:'Ingreso Diario Promedio',  accent:'var(--accent-teal)',   isMoney:true },
+    { key:'ingresoSemanal',     label:'Ingreso Semanal',          accent:'var(--accent-teal)',   isMoney:true },
+    { key:'ingresoMensual',     label:'Ingreso Mensual',          accent:'var(--accent-blue)',   isMoney:true },
+    { key:'ingresoAnual',       label:'Ingreso Anual',            accent:'var(--accent-purple)', isMoney:true },
+    { key:'margenBruto',        label:'Margen Bruto',             accent:'var(--accent-amber)',  isMoney:false, isPct:true },
+    { key:'margenNetoExtra',    label:'Margen Neto',              accent:'var(--accent-pink)',   isMoney:false, isPct:true },
+    { key:'utilidadClienteExtra',label:'Utilidad por Cliente',    accent:'var(--accent-green)',  isMoney:true },
+    { key:'roi',                label:'ROI',                      accent:'var(--accent-green)',  isMoney:false, isPct:true },
+    { key:'payback',            label:'Payback (meses)',          accent:'var(--accent-red)',    isMoney:false, suffix:' meses' },
+  ];
+
+  function extraBuildKpiSkeleton(){
+    const grid = document.getElementById('extraKpiGrid');
+    if (!grid) return;
+    grid.innerHTML = EXTRA_KPI_DEFS.map((def,i)=> `
+      <div class="kpi-card fade-in fade-in-d${(i%4)+1}" style="--kpi-accent:${def.accent}">
+        <div class="kpi-top">
+          <div class="kpi-icon">${'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+ICONS['trending-up']+'</svg>'}</div>
+        </div>
+        <div class="kpi-label">${def.label}</div>
+        <div class="kpi-value" id="extra-kpi-${def.key}">0</div>
+        <div class="kpi-sub" id="extra-kpi-sub-${def.key}">Sin datos aún</div>
+      </div>
+    `).join('');
+  }
+  extraBuildKpiSkeleton();
+
+  function simRenderExtra(res, egresos){
+    const ingresoMensual = res.ingresoBruto;
+    const mrr = ingresoMensual; // ingreso recurrente mensual de membresías
+    const arr = mrr * 12;
+    const ingresoDiario = ingresoMensual / 30;
+    const ingresoSemanal = ingresoMensual / 4.345;
+    const ingresoAnual = arr;
+    const margenBruto = ingresoMensual>0 ? (res.utilidadOperativa/ingresoMensual)*100 : 0;
+    const inversionInicial = parseFloat(inpInversionInicial.value) || 0;
+    const utilidadAnual = res.utilidadNeta * 12;
+    const roi = inversionInicial>0 ? (utilidadAnual/inversionInicial)*100 : 0;
+    const payback = res.utilidadNeta>0 ? inversionInicial/res.utilidadNeta : Infinity;
+
+    const values = {
+      mrr, arr, ingresoDiario, ingresoSemanal, ingresoMensual, ingresoAnual,
+      margenBruto, margenNetoExtra: res.margenNeto, utilidadClienteExtra: res.utilidadPorCliente,
+      roi, payback: isFinite(payback) ? payback : 0,
+    };
+
+    EXTRA_KPI_DEFS.forEach(def=>{
+      const el = document.getElementById('extra-kpi-'+def.key);
+      const subEl = document.getElementById('extra-kpi-sub-'+def.key);
+      if (!el) return;
+      const mode = def.isPct ? 'pct' : (def.isMoney ? 'money' : 'num');
+
+      if (def.key==='payback' && !isFinite(payback)){
+        el.textContent = 'N/A';
+        subEl.textContent = 'Utilidad neta insuficiente para recuperar inversión';
+        return;
+      }
+
+      simAnimateCounter(el, values[def.key], mode);
+
+      if (def.key==='mrr') subEl.textContent = 'Ingreso mensual recurrente';
+      else if (def.key==='arr') subEl.textContent = 'MRR × 12 meses';
+      else if (def.key==='ingresoDiario') subEl.textContent = 'Ingreso mensual ÷ 30 días';
+      else if (def.key==='ingresoSemanal') subEl.textContent = 'Ingreso mensual ÷ 4.345 semanas';
+      else if (def.key==='ingresoMensual') subEl.textContent = 'Inscritos × precio actual';
+      else if (def.key==='ingresoAnual') subEl.textContent = 'Proyección a 12 meses';
+      else if (def.key==='margenBruto') subEl.textContent = 'Utilidad operativa ÷ ingreso';
+      else if (def.key==='margenNetoExtra') subEl.textContent = 'Utilidad neta ÷ ingreso bruto';
+      else if (def.key==='utilidadClienteExtra') subEl.textContent = 'Por socio activo';
+      else if (def.key==='roi') subEl.textContent = `Sobre inversión de ${fmtMXN(inversionInicial)}`;
+      else if (def.key==='payback') subEl.textContent = `${fmtNum(values.payback)} meses para recuperar inversión`;
+    });
+  }
+
+  // --- Orquestador principal: recalcula TODO el simulador en vivo ---
+  function simRefreshAll(){
+    if (!lastResult) return; // espera a que exista al menos un cálculo de Ingresos
+
+    const inscritos = lastResult.inscritos;
+    const precio = lastResult.precio;
+    const isrPct = parseFloat(inpISR.value) || 0;
+
+    const egresos = leerEgresos();
+
+    document.getElementById('subtotalFijos').textContent = fmtMXN(egresos.totalFijos);
+    document.getElementById('subtotalVariables').textContent = fmtMXN(egresos.totalVariables);
+    document.getElementById('totalEgresosSim').textContent = fmtMXN(egresos.totalEgresos);
+
+    const res = simCalcular(inscritos, precio, egresos.totalEgresos, isrPct);
+
+    simRenderKpis(res, egresos);
+    simRenderSemaforo(res);
+    simRenderResultado(res);
+    simRenderDona(egresos);
+    simRenderSensibilidad(inscritos, egresos.totalEgresos, isrPct);
+    simRenderEscenarios(inscritos, egresos.totalEgresos, isrPct, precio);
+    simRenderExtra(res, egresos);
+  }
+
+  // --- Listeners: recalcular en vivo ante cualquier cambio (sin botón) ---
+  document.querySelectorAll('#fijosFields input, #variablesFields input').forEach(el=>{
+    el.addEventListener('input', simRefreshAll);
+  });
+  inpISR.addEventListener('input', simRefreshAll);
+  inpInversionInicial.addEventListener('input', simRefreshAll);
+
+  // --- Exportación PDF del tab de Egresos ---
+  const simBtnPdf = document.getElementById('simBtnPdf');
+  if (simBtnPdf){
+    simBtnPdf.addEventListener('click', ()=>{
+      if (typeof html2pdf === 'undefined'){
+        showToast('No se pudo cargar html2pdf.js. Verifica tu conexión a internet.', 'error');
+        return;
+      }
+      const tabEl = document.getElementById('tabEgresos');
+      showToast('Generando PDF de egresos, un momento…', 'info');
+      const opt = {
+        margin:[6,6,6,6],
+        filename:`CRACKSGYM_Egresos_${new Date().toISOString().slice(0,10)}.pdf`,
+        image:{ type:'jpeg', quality:0.97 },
+        html2canvas:{ scale:2, backgroundColor:'#1E1E1E', useCORS:true },
+        jsPDF:{ unit:'mm', format:'a3', orientation:'portrait' }
+      };
+      html2pdf().set(opt).from(tabEl).save().then(()=>{
+        showToast('PDF de egresos exportado correctamente.', 'success');
+      }).catch(()=>{
+        showToast('Ocurrió un error al exportar el PDF.', 'error');
+      });
+    });
+  }
+
+  // --- Exportación Excel del tab de Egresos (KPIs + escenarios) ---
+  const simBtnExcel = document.getElementById('simBtnExcel');
+  if (simBtnExcel){
+    simBtnExcel.addEventListener('click', ()=>{
+      if (typeof XLSX === 'undefined'){
+        showToast('No se pudo cargar SheetJS. Verifica tu conexión a internet.', 'error');
+        return;
+      }
+      if (!lastResult){
+        showToast('Calcula al menos una vez en el Dashboard antes de exportar.', 'error');
+        return;
+      }
+
+      const inscritos = lastResult.inscritos;
+      const precio = lastResult.precio;
+      const isrPct = parseFloat(inpISR.value) || 0;
+      const egresos = leerEgresos();
+      const res = simCalcular(inscritos, precio, egresos.totalEgresos, isrPct);
+      const inversionInicial = parseFloat(inpInversionInicial.value) || 0;
+      const utilidadAnual = res.utilidadNeta * 12;
+      const roi = inversionInicial>0 ? (utilidadAnual/inversionInicial)*100 : 0;
+      const payback = res.utilidadNeta>0 ? inversionInicial/res.utilidadNeta : null;
+
+      const kpiRows = [
+        { 'Indicador':'Ingreso Bruto', 'Valor (MXN)':Math.round(res.ingresoBruto) },
+        { 'Indicador':'Total Egresos', 'Valor (MXN)':Math.round(res.totalEgresos) },
+        { 'Indicador':'Utilidad Operativa', 'Valor (MXN)':Math.round(res.utilidadOperativa) },
+        { 'Indicador':'ISR', 'Valor (MXN)':Math.round(res.isr) },
+        { 'Indicador':'Utilidad Neta', 'Valor (MXN)':Math.round(res.utilidadNeta) },
+        { 'Indicador':'Margen Neto (%)', 'Valor (MXN)':Number(res.margenNeto.toFixed(2)) },
+        { 'Indicador':'Utilidad por Cliente', 'Valor (MXN)':Math.round(res.utilidadPorCliente) },
+        { 'Indicador':'Flujo Neto', 'Valor (MXN)':Math.round(res.flujoNeto) },
+        { 'Indicador':'Punto de Equilibrio (clientes)', 'Valor (MXN)':Math.round(res.puntoEquilibrio) },
+        { 'Indicador':'Clientes Faltantes', 'Valor (MXN)':res.clientesFaltantes },
+        { 'Indicador':'Inversión Inicial', 'Valor (MXN)':Math.round(inversionInicial) },
+        { 'Indicador':'ROI Anual (%)', 'Valor (MXN)':Number(roi.toFixed(2)) },
+        { 'Indicador':'Payback (meses)', 'Valor (MXN)': payback ? Number(payback.toFixed(1)) : 'N/A' },
+      ];
+
+      const egresosRows = [
+        ...FIJOS_DEFS.map(d=>({ 'Categoría':d.label, 'Tipo':'Fijo', 'Monto (MXN)':egresos.fijos[d.key] })),
+        ...VARIABLES_DEFS.map(d=>({ 'Categoría':d.label, 'Tipo':'Variable', 'Monto (MXN)':egresos.variables[d.key] })),
+      ];
+
+      const escenariosRows = PRECIOS_ESCENARIO.map(p=>{
+        const r = simCalcular(inscritos, p, egresos.totalEgresos, isrPct);
+        return {
+          'Precio':p, 'Ingreso':Math.round(r.ingresoBruto), 'Egresos':Math.round(r.totalEgresos),
+          'Utilidad Neta':Math.round(r.utilidadNeta), 'Margen (%)':Number(r.margenNeto.toFixed(2)),
+          'Punto de Equilibrio (clientes)':Math.round(r.puntoEquilibrio), 'Clientes Faltantes':r.clientesFaltantes,
+        };
+      });
+
+      const wb = XLSX.utils.book_new();
+      const wsKpi = XLSX.utils.json_to_sheet(kpiRows);
+      wsKpi['!cols'] = [{wch:32},{wch:16}];
+      XLSX.utils.book_append_sheet(wb, wsKpi, 'KPIs Rentabilidad');
+
+      const wsEgresos = XLSX.utils.json_to_sheet(egresosRows);
+      wsEgresos['!cols'] = [{wch:28},{wch:12},{wch:14}];
+      XLSX.utils.book_append_sheet(wb, wsEgresos, 'Estructura de Costos');
+
+      const wsEsc = XLSX.utils.json_to_sheet(escenariosRows);
+      wsEsc['!cols'] = Object.keys(escenariosRows[0]).map(k=>({wch:Math.max(16,k.length+2)}));
+      XLSX.utils.book_append_sheet(wb, wsEsc, 'Escenarios por Precio');
+
+      XLSX.writeFile(wb, `CRACKSGYM_Egresos_${new Date().toISOString().slice(0,10)}.xlsx`);
+      showToast('Excel de egresos exportado correctamente.', 'success');
+    });
+  }
+
+  // --- Todo declarado: activar bandera y hacer un refresh completo de
+  //     ambos módulos ahora que sus const ya existen. ---
+  modulesReady = true;
+  if (typeof gRefreshAll === 'function'){ gRefreshAll(); }
+  simRefreshAll();
+
+  } // fin de init()
+
+})();
+</script>
+
+</body>
+</html>
